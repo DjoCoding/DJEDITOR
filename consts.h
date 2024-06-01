@@ -1,0 +1,17 @@
+#ifndef CONSTS_H
+#define CONSTS_H
+
+#define NEW_LINE_CHAR '\n'
+#define NULL_TERMINATOR '\0'
+
+
+#define BUFFER_INIITIAL_SIZE 100
+#define BUFFER_SIZE_ADDED 100
+
+#define LINES_INITIAL_SIZE 10
+#define LINES_SIZE_ADDED 10
+
+#define MAX_INPUT_SIZE 30
+
+
+#endif
