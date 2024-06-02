@@ -18,23 +18,26 @@ int main(int argc, char **argv) {
             editor_quit();
             return 1;
         } else { 
-            editor.FILE_NAME = (char *)malloc(sizeof(char) * (MAX_INPUT_SIZE + 1));
-            memcpy(editor.FILE_NAME, argv[1], sizeof(char) * user_input_size);
+            editor.config.FILE_NAME = (char *)malloc(sizeof(char) * (MAX_INPUT_SIZE + 1));
+            memcpy(editor.config.FILE_NAME, argv[1], sizeof(char) * user_input_size);
         }
     } else 
-        editor.FILE_NAME = NULL;
+        editor.config.FILE_NAME = NULL;
 
     if (atexit(editor_quit) != 0) {
         fprintf(stderr, "FAILED TO SET EXIT FUNCTION\n");
         return EXIT_FAILURE;
-    } 
+    }
 
-    editor_load_file(&editor, editor.FILE_NAME);
+    // SAVE THE PRIMARY SNAPSHOT OF THE EDITOR
+    editor_save_primary_snapshot(&editor);
+
+    editor_load_file(&editor, editor.config.FILE_NAME);
     editor_render(&editor);
 
     int ch;
 
-    while (editor.state != EXIT) {        
+    while (editor.config.state != EXIT) {        
         // READ USER INPUT
         ch = getch();
 
@@ -50,7 +53,7 @@ int main(int argc, char **argv) {
         // LOOP
     }
 
-    editor_quit(&editor);
+    editor_quit();
 
     return EXIT_SUCCESS;
 }

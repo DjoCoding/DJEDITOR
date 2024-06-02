@@ -46,13 +46,19 @@ typedef enum {
     EXIT,
 } STATE;
 
-typedef struct {
+typedef struct _EDITOR_CONFIG {
     BUFFER buff;
     CURSOR cursor;
     MODE mode;
     STATE state;
-    WINDOW *windows[WINDOW_COUNT];
     char *FILE_NAME;
+    struct _EDITOR_CONFIG *next;
+} EDITOR_CONFIG;
+
+typedef struct _EDITOR {
+    EDITOR_CONFIG config;
+    EDITOR_CONFIG *snapshots;                     // IMPLEMETING THE RE-DO AND UN-DO OPERATIONS
+    WINDOW *windows[WINDOW_COUNT];
 } EDITOR;
 
 #endif

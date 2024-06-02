@@ -1,5 +1,5 @@
-#ifndef DED_H
-#define DED_H
+#ifndef DJEDITOR_H
+#define DJEDITOR_H
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -14,45 +14,54 @@
 
 EDITOR editor = {0};
 
+// START THE EDITOR
 EDITOR editor_begin(EDITOR *editor);
-void editor_quit();
-
+// EVENT HANDLER
 void editor_handle_event(EDITOR *editor, int ch);
-void editor_print_meta_data_on_bottom_window(EDITOR *editor);
-void editor_render(EDITOR *editor);
-
+// LOAD FILE TO THE EDITOR BUFFER
 void editor_load_file(EDITOR *editor, char *filename);
-
+// ROWS FUNCTIONS
+static void editor_resize_row(ROW **row);
+static void editor_resize_curr_row(EDITOR *editor);
+static void editor_append_row_to_another(EDITOR *editor, ROW **dest, ROW **src);   
+static void editor_add_new_row(EDITOR *editor);
+static void row_remove(ROW **row);
+// ADD THE CHARACTER TO THE EDITOR BUFFER
+static void editor_handle_normal_char(EDITOR *editor, int ch);
+static void editor_buffer_add_char(EDITOR *editor, int ch);
+// GETTING INPUT FUNCTIONS
+static void editor_ask_user_for_input_on_bottom_window(EDITOR *editor);
+// HANDLING THE ARROW KEYS FUNCTIONS
 static void editor_go_left(EDITOR *editor);
 static void editor_go_right(EDITOR *editor);
 static void editor_go_down(EDITOR *editor);
 static void editor_go_up(EDITOR *editor);
+// REMOVE A CHAR FROM THE EDITOR BUFFER
+static void editor_remove_char(EDITOR *editor);
+// REMOVE THE EDITOR CURRENT CONFIG
+static void editor_remove_config(EDITOR *editor);
+// RENDERING FUNCTIONS
+static void editor_print_no_line(EDITOR *editor);
+static void editor_print_line_number(EDITOR *editor, size_t row);
+void editor_render(EDITOR *editor);
+// IMPLEMENTATION OF THE UNDO OPERATION
+static ROW *copy_row(ROW *row);
+static ROW *get_current_rows(ROW *all_rows);
+static BUFFER get_current_buffer(BUFFER buffer, size_t current_row_position);
+static EDITOR_CONFIG get_current_config(EDITOR_CONFIG curr_config);
+static EDITOR_CONFIG editor_get_current_config(EDITOR *editor);
+static void editor_push_current_config_to_stack(EDITOR *editor);
+static EDITOR_CONFIG editor_pop_config(EDITOR *editor);
+void editor_save_primary_snapshot(EDITOR *editor);
+static void editor_undo(EDITOR *editor);
+// QUIT THE EDITOR
+void editor_quit();
 
-#define DED_IMPLEMENTATION
+#define DJEDITOR_IMPLEMENTATION
 
-
-static void row_remove(ROW **row) {
-    free((*row)->content);
-    free(*row);
-    *row = NULL;
-}
-
-static void editor_remove(EDITOR *editor) {
-    // DELETE ALL THE ROWS WITH THEIR CONTENTS
-    ROW *current = editor->buff.rows;
-    while (current != NULL) {
-        ROW *next = current->next;
-        row_remove(&current);
-        current = next;
-    }
-
-    editor->buff.rows = NULL;
-    free(editor->FILE_NAME);
-    delwin(editor->windows[BOTTOM_WINDOW]);
-}
-
+// ROWS FUNCTIONS
 static bool editor_check_curr_row_full(EDITOR *editor) {
-    return (editor->buff.current_row->size == editor->buff.current_row->cap);
+    return (editor->config.buff.current_row->size == editor->config.buff.current_row->cap);
 }
 
 static void editor_resize_row(ROW **row) {
@@ -64,11 +73,26 @@ static void editor_resize_row(ROW **row) {
 }
 
 static void editor_resize_curr_row(EDITOR *editor) {
-    editor_resize_row(&(editor->buff.current_row));
+    editor_resize_row(&(editor->config.buff.current_row));
 }
 
-void editor_get_cursor_pos_from_buffer(EDITOR *editor) {
-    editor->cursor.pos.col++;
+static void editor_append_row_to_another(EDITOR *editor, ROW **dest, ROW **src) {   
+    // JUST IN ORDER TO FOLLOW THE PARAMETER CONVENTIONS 
+    (void) editor;
+
+    while ((*dest)->size + (*src)->size > (*dest)->cap) {
+        editor_resize_row(dest);
+    }
+
+    memcpy((*dest)->content + (*dest)->size, (*src)->content, sizeof(char) * (*src)->size);
+
+    (*dest)->size += (*src)->size;
+
+    ROW *next = (*src)->next;
+    row_remove(src);
+    (*dest)->next = next;
+
+    return;
 }
 
 // THIS WILL ADD A NEW ROW AFTER THE CURRENT ROW IN THE BUFFER
@@ -76,26 +100,29 @@ static void editor_add_new_row(EDITOR *editor) {
     ROW *new_row = row_init(editor);
     
     // IF THE EDITOR DOESN'T HAVE ANY LINES THEN UPDATE ALL THE POINTERS
-    if (editor->buff.current_row == NULL) {
-        editor->buff.rows = new_row;
-        editor->buff.current_row = new_row;
-        editor->buff.tail = new_row;
+    if (editor->config.buff.current_row == NULL) {
+        editor->config.buff.rows = new_row;
+        editor->config.buff.current_row = new_row;
+        editor->config.buff.tail = new_row;
     } else {
-        new_row->next = editor->buff.current_row->next;
-        new_row->prev = editor->buff.current_row;
+        new_row->next = editor->config.buff.current_row->next;
+        new_row->prev = editor->config.buff.current_row;
         
-        editor->buff.current_row->next = new_row;
+        editor->config.buff.current_row->next = new_row;
     }
 
-    editor->buff.size++;
+    editor->config.buff.size++;
     new_row = NULL;
 }
 
+
+// ADDING A CHAR IN THE EDITOR BUFFER
 static void editor_buffer_add_char(EDITOR *editor, int ch) {
-    ROW *curr_row = editor->buff.current_row;
+    ROW *curr_row = editor->config.buff.current_row;
 
     // IF THE CHAR IS A NEW LINE CHAR ('\n') THEN WE ADD A NEW ROW IN THE BUFFER
     if(ch == NEW_LINE_CHAR) {
+        editor_push_current_config_to_stack(editor);
         editor_add_new_row(editor);
         editor_go_down(editor);
         return;
@@ -104,7 +131,7 @@ static void editor_buffer_add_char(EDITOR *editor, int ch) {
     // IF NO ROW IS FOUND THEN MAKE A NEW ONE
     if (curr_row == NULL) {
         editor_add_new_row(editor);
-        curr_row = editor->buff.current_row;
+        curr_row = editor->config.buff.current_row;
     }
 
     // FIRST I HAVE TO CHECK IF THE CURRENT ROW IS FULL OF CHARS THEN RESIZE IT
@@ -114,13 +141,13 @@ static void editor_buffer_add_char(EDITOR *editor, int ch) {
     
     // IF THE CURSOR ISN'T AT THE END OF THE LINE THEN SHIFT ALL THE CONTENT TO THE RIGHT OF THE CURSROR AND APPLY THE CHANGES
     size_t i = curr_row->size;
-    while (i > editor->cursor.pos.col) {
+    while (i > editor->config.cursor.pos.col) {
         curr_row->content[i] = curr_row->content[i - 1];
         i--;
     }
     
     // PUT THE CHARACTER IN ITS PLACE
-    curr_row->content[editor->cursor.pos.col] = ch;
+    curr_row->content[editor->config.cursor.pos.col] = ch;
 
 
     // INCREMENT THE CURRENT ROW SIZE
@@ -147,7 +174,8 @@ static void editor_buffer_add_char(EDITOR *editor, int ch) {
     }
 } 
 
-// DO IT AGAIN
+// READ A STRING IN THE BOTTOM WINDOW 
+// (NEED TO HANDLE THE BACK SPACE KEY AND IGNORE THE TABS AND THE NEW LINE CHARS)
 static void editor_ask_user_for_input_on_bottom_window(EDITOR *editor) {
     wclear(editor->windows[BOTTOM_WINDOW]);
     mvwprintw(editor->windows[BOTTOM_WINDOW], 0, 1, "type the file name: ");
@@ -155,7 +183,7 @@ static void editor_ask_user_for_input_on_bottom_window(EDITOR *editor) {
     // APPLY CHANGES
     wrefresh(editor->windows[BOTTOM_WINDOW]);
     
-    editor->FILE_NAME = (char *)malloc(sizeof(char) * (MAX_INPUT_SIZE + 1));
+    editor->config.FILE_NAME = (char *)malloc(sizeof(char) * (MAX_INPUT_SIZE + 1));
 
     size_t input_size = 0;
     int ch;
@@ -164,20 +192,20 @@ static void editor_ask_user_for_input_on_bottom_window(EDITOR *editor) {
         ch = getch();
         if (ch == NEW_LINE_CHAR) break;
 
-        editor->FILE_NAME[input_size++] = ch;
+        editor->config.FILE_NAME[input_size++] = ch;
 
         // PRINT THE CHAR ENTERED TO THE SCREEN
         waddch(editor->windows[BOTTOM_WINDOW], ch);
         wrefresh(editor->windows[BOTTOM_WINDOW]);
     }
 
-    editor->FILE_NAME[input_size] = NULL_TERMINATOR;
+    editor->config.FILE_NAME[input_size] = NULL_TERMINATOR;
 }
 
-
+// SAVE THE CURRENT BUFFER OF THE EDITOR IN A FILE
 void editor_save_in_file(EDITOR *editor) {
-    FILE *fp = fopen(editor->FILE_NAME, "w");
-    ROW *current = editor->buff.rows;
+    FILE *fp = fopen(editor->config.FILE_NAME, "w");
+    ROW *current = editor->config.buff.rows;
 
     size_t index;
     
@@ -200,18 +228,18 @@ void editor_save_in_file(EDITOR *editor) {
 // UPDATE THE MODE IF WE'RE AT THE NORMAL MODE
 
 static void editor_handle_normal_char(EDITOR *editor, int ch) {
-    if (editor->mode == NORMAL) {
+    if (editor->config.mode == NORMAL) {
         if (ch == 'i') {
             // SWITCH THE MODE TO INSERT
-            editor->mode = INSERT;
+            editor->config.mode = INSERT;
         } else if (ch == ':') {
             // HANDLE THE COMMANDS GIVEN
         }
-    } else if (editor->mode == INSERT) {
+    } else if (editor->config.mode == INSERT) {
         if (ch == CTRL('s')) {
-            // ASK THE USER FOR THE NAME OF THE FILE IF IT'S NOT PROVIDED AT THE COMMAND LINE
+            // ASK THE USER FOR THE NAME OF THE FILE IF IT'S NOT PROVIDJEDITOR AT THE COMMAND LINE
         
-            if (editor->FILE_NAME == NULL) {
+            if (editor->config.FILE_NAME == NULL) {
                 editor_ask_user_for_input_on_bottom_window(editor);
             }
 
@@ -220,7 +248,7 @@ static void editor_handle_normal_char(EDITOR *editor, int ch) {
 
         } else if (ch == CTRL('d')) {
             // SWITCH THE MODE TO NORMAL
-            editor->mode = NORMAL;
+            editor->config.mode = NORMAL;
 
         }  else {            
                 // PUT THE NEW CHAR AT PLACE TO RENDER AFTER
@@ -229,8 +257,9 @@ static void editor_handle_normal_char(EDITOR *editor, int ch) {
     }
 }
 
+// ADDITIONAL FUNCTIONS
 static char *editor_stringfy_state(EDITOR *editor) {
-    switch (editor->state) {
+    switch (editor->config.state) {
         case RUNNING: 
             return "RUNNING";
         case PENDING: 
@@ -243,7 +272,7 @@ static char *editor_stringfy_state(EDITOR *editor) {
 } 
 
 static char *editor_stringfy_mode(EDITOR *editor) {
-    switch (editor->mode) {
+    switch (editor->config.mode) {
         case NORMAL:
             return "NORMAL";
         case INSERT:
@@ -264,7 +293,7 @@ void editor_print_meta_data_on_bottom_window(EDITOR *editor) {
     getmaxyx(editor->windows[BOTTOM_WINDOW], window_height, window_width);
 
     // GETTING THE CURSOR POSITION
-    size_t row = editor->cursor.pos.row, col = editor->cursor.pos.col;
+    size_t row = editor->config.cursor.pos.row, col = editor->config.cursor.pos.col;
 
     // SETTING BOLD FONT
     wattron(editor->windows[BOTTOM_WINDOW], A_BOLD);
@@ -273,7 +302,7 @@ void editor_print_meta_data_on_bottom_window(EDITOR *editor) {
     mvwprintw(editor->windows[BOTTOM_WINDOW], 0, 1, "%s", editor_stringfy_mode(editor));
 
     // GO TO THE CENTER
-    mvwprintw(editor->windows[BOTTOM_WINDOW], 0, (window_width - 20) / 2, "%ld : %ld, %ld", row, col, editor->buff.current_row->size);
+    mvwprintw(editor->windows[BOTTOM_WINDOW], 0, (window_width - 15) / 2, "%ld : %ld", row, col);
 
     // MAKE THE EDITOR STATE BLINKING
     wattron(editor->windows[BOTTOM_WINDOW], A_BLINK);
@@ -291,89 +320,71 @@ void editor_print_meta_data_on_bottom_window(EDITOR *editor) {
     wrefresh(editor->windows[BOTTOM_WINDOW]);
 }
 
-static void editor_go_left(EDITOR *editor) {
-    if (editor->cursor.pos.col > 0) {
-        editor->cursor.pos.col--;    
-    } else if (editor->buff.current_row->prev) {
-        editor->cursor.pos.row--;
 
-        editor->buff.current_row = editor->buff.current_row->prev;
+// HANDLING ARROW KEYS 
+static void editor_go_left(EDITOR *editor) {
+    if (editor->config.cursor.pos.col > 0) {
+        editor->config.cursor.pos.col--;    
+    } else if (editor->config.buff.current_row->prev) {
+        editor->config.cursor.pos.row--;
+
+        editor->config.buff.current_row = editor->config.buff.current_row->prev;
         
-        editor->cursor.pos.col = editor->buff.current_row->size;
+        editor->config.cursor.pos.col = editor->config.buff.current_row->size;
     }
-    move(editor->cursor.pos.row, editor->cursor.pos.col);
+    move(editor->config.cursor.pos.row, editor->config.cursor.pos.col);
 }
 
 static void editor_go_right(EDITOR *editor) {
-    if (editor->cursor.pos.col < editor->buff.current_row->size) {
-        editor->cursor.pos.col++;    
-    } else if (editor->buff.current_row->next) {
-        editor->cursor.pos.row++;
+    if (editor->config.cursor.pos.col < editor->config.buff.current_row->size) {
+        editor->config.cursor.pos.col++;    
+    } else if (editor->config.buff.current_row->next) {
+        editor->config.cursor.pos.row++;
 
-        editor->buff.current_row = editor->buff.current_row->next;
+        editor->config.buff.current_row = editor->config.buff.current_row->next;
         
-        editor->cursor.pos.col = 0;
+        editor->config.cursor.pos.col = 0;
     }
-    move(editor->cursor.pos.row, editor->cursor.pos.col);
+    move(editor->config.cursor.pos.row, editor->config.cursor.pos.col);
 }
 
 static void editor_go_down(EDITOR *editor) {
     // THERE EXISTS MORE ROWS AFTER THE CURRENT ROW
-    if (editor->buff.current_row->next) {
-        editor->cursor.pos.row++;
-        editor->buff.current_row = editor->buff.current_row->next;
+    if (editor->config.buff.current_row->next) {
+        editor->config.cursor.pos.row++;
+        editor->config.buff.current_row = editor->config.buff.current_row->next;
 
-        if (editor->cursor.pos.col > editor->buff.current_row->size) 
-            editor->cursor.pos.col = editor->buff.current_row->size;
+        if (editor->config.cursor.pos.col > editor->config.buff.current_row->size) 
+            editor->config.cursor.pos.col = editor->config.buff.current_row->size;
     } else  
-        editor->cursor.pos.col = editor->buff.current_row->size;        
+        editor->config.cursor.pos.col = editor->config.buff.current_row->size;        
 
 
-    move(editor->cursor.pos.row, editor->cursor.pos.col);
+    move(editor->config.cursor.pos.row, editor->config.cursor.pos.col);
 }
 
 static void editor_go_up(EDITOR *editor) {
-    if (editor->buff.current_row->prev) {
-        editor->cursor.pos.row--;
-        editor->buff.current_row = editor->buff.current_row->prev;
+    if (editor->config.buff.current_row->prev) {
+        editor->config.cursor.pos.row--;
+        editor->config.buff.current_row = editor->config.buff.current_row->prev;
         
-        if (editor->cursor.pos.col > editor->buff.current_row->size) 
-            editor->cursor.pos.col = editor->buff.current_row->size;
+        if (editor->config.cursor.pos.col > editor->config.buff.current_row->size) 
+            editor->config.cursor.pos.col = editor->config.buff.current_row->size;
     } else 
-        editor->cursor.pos.col = 0;
+        editor->config.cursor.pos.col = 0;
         
-    move(editor->cursor.pos.row, editor->cursor.pos.col);
+    move(editor->config.cursor.pos.row, editor->config.cursor.pos.col);
 }
-
-static void editor_append_row_to_another(EDITOR *editor, ROW **dest, ROW **src) {   
-    // JUST IN ORDER TO FOLLOW THE PARAMETER CONVENTIONS 
-    (void) editor;
-
-    while ((*dest)->size + (*src)->size > (*dest)->cap) {
-        editor_resize_row(dest);
-    }
-
-    memcpy((*dest)->content + (*dest)->size, (*src)->content, sizeof(char) * (*src)->size);
-
-    (*dest)->size += (*src)->size;
-
-    ROW *next = (*src)->next;
-    row_remove(src);
-    (*dest)->next = next;
-
-    return;
-}
-
 
 static void editor_remove_char(EDITOR *editor) {
-    if (editor->cursor.pos.row <= 0 && editor->cursor.pos.col <= 0) return;
+    if (editor->config.cursor.pos.row <= 0 && editor->config.cursor.pos.col <= 0) return;
 
-    if (editor->buff.current_row->size == 0) {
-        if (editor->buff.current_row->prev == NULL) return;
+    if (editor->config.buff.current_row->size == 0) {
+        if (editor->config.buff.current_row->prev == NULL) return;
         
         editor_go_left(editor);
         
-        row_remove(&(editor->buff.current_row->next));
+        row_remove(&(editor->config.buff.current_row->next));
         return;
     }
 
@@ -381,9 +392,9 @@ static void editor_remove_char(EDITOR *editor) {
     editor_go_left(editor);
 
     // SHIFT ALL THE BUFFER ONCE TO THE LEFT
-    size_t i = editor->cursor.pos.col;
-    while (i < editor->buff.current_row->size) {
-        editor->buff.current_row->content[i] = editor->buff.current_row->content[i + 1];
+    size_t i = editor->config.cursor.pos.col;
+    while (i < editor->config.buff.current_row->size) {
+        editor->config.buff.current_row->content[i] = editor->config.buff.current_row->content[i + 1];
         i++;
     };
 
@@ -393,16 +404,21 @@ static void editor_remove_char(EDITOR *editor) {
     // THAT MEANS THE PREVIOUS POSITION OF THE CURSOR WAS AT POSITION 0
     
         // LATER I GOTTA MOVE ALL THE NEXT LINE (OF THE CURRENT ROW) TO THE PREV ROW AT THE END
-    if (editor->cursor.pos.col != editor->buff.current_row->size) editor->buff.current_row->size--;
+    if (editor->config.cursor.pos.col != editor->config.buff.current_row->size) editor->config.buff.current_row->size--;
     else 
         // IF WE ENCOUNTERED THE SITUATION ABOVE WE APPEND THE CURRENT ROW WITH IT'S PREVIOUS
-        editor_append_row_to_another(editor, &(editor->buff.current_row), &(editor->buff.current_row->next));
+        editor_append_row_to_another(editor, &(editor->config.buff.current_row), &(editor->config.buff.current_row->next));
 }
 
+
+// THE EDITOR EVENT HANDLER
 void editor_handle_event(EDITOR *editor, int ch) {
     switch (ch) {
         case CTRL('c'):
-            editor->state = EXIT;
+            editor->config.state = EXIT;
+            break;
+        case CTRL('z'):
+            editor_undo(editor);
             break;
         case KEY_BACKSPACE:
             editor_remove_char(editor);
@@ -425,17 +441,61 @@ void editor_handle_event(EDITOR *editor, int ch) {
     }
 }
 
+
+// INITIALIZES THE EDITOR AND ALLOCATING MEMORY FOR IT
 EDITOR editor_begin(EDITOR *editor) {
     ncurses_init();
     *editor = editor_init();
     return *editor;
 }
 
+
+// QUITTING THE EDITOR AND DE-ALLOCATING ALL THE MEMORY USED
 void editor_quit() {
-    editor_remove(&editor);
+    editor_remove_config(&editor);
+    delwin(editor.windows[BOTTOM_WINDOW]);
     endwin();
 }
 
+
+static void row_remove(ROW **row) {
+    free((*row)->content);
+    free(*row);
+    *row = NULL;
+}
+
+static void remove_config(EDITOR_CONFIG *config) {
+    // DELETE ALL THE ROWS WITH THEIR CONTENTS
+    ROW *current = config->buff.rows;
+    while (current != NULL) {
+        ROW *next = current->next;
+        row_remove(&current);
+        current = next;
+    }
+
+    config->buff.current_row = NULL;
+    config->buff.tail = NULL;
+
+    free(config->FILE_NAME);
+    
+    config = NULL;
+}
+
+static void editor_remove_config(EDITOR *editor) {
+    // REMOVE THE EDITOR CURRENT CONFIG
+    remove_config(&(editor->config));
+
+    // DELETE ALL THE SNAPSHOTS
+    EDITOR_CONFIG *config = editor->snapshots;
+    while(config != NULL) {
+        EDITOR_CONFIG *config_next = config->next;
+        remove_config(config);
+        config = config_next;
+    }
+}
+
+
+// LOAD A GIVEN FILE BY THE USER INTO THE BUFFER OF THE EDITOR
 void editor_load_file(EDITOR *editor, char *filename) {
     size_t content_size = 0;
 
@@ -468,10 +528,10 @@ static void editor_print_line_number(EDITOR *editor, size_t row) {
     // SETTING THE COLOR
     wattron(stdscr, LINE_NUMBER_THEME);
 
-    size_t printed_row = (editor->cursor.pos.row + 1 == row) ? row : (size_t) abs((int) (editor->cursor.pos.row + 1- row));
+    size_t printed_row = (editor->config.cursor.pos.row + 1 == row) ? row : (size_t) abs((int) (editor->config.cursor.pos.row + 1- row));
 
     // PRINT THE ROW
-    int num_digits = count_num_digit(editor->buff.size);
+    int num_digits = count_num_digit(editor->config.buff.size);
     for (int i = 0; i < num_digits - count_num_digit(printed_row); i++) 
         waddch(stdscr, ' ');
 
@@ -484,17 +544,18 @@ static void editor_print_line_number(EDITOR *editor, size_t row) {
 void editor_render(EDITOR *editor) {
     size_t height, width;
     getmaxyx(stdscr, height, width);
+    (void)width;
 
     wclear(stdscr);
     move(0, 0);
 
-    ROW *current = editor->buff.rows;
+    ROW *current = editor->config.buff.rows;
     size_t row = 0, col = 0;
 
     int left_space = 0;
 
     // SET THE LEFT SPACE AFTER PRINTING THE NO LINE CHAR
-    if (editor->buff.size == 0) 
+    if (editor->config.buff.size == 0) 
         left_space = 2;
 
     while (current) {
@@ -504,10 +565,10 @@ void editor_render(EDITOR *editor) {
         editor_print_line_number(editor, row + 1);
 
         // COUNT THE SPACE TO MOVE THE CURSOR THERE AFTER PRINTTING THE LINE NUMBER
-        left_space = count_num_digit(editor->buff.size) + 2;
+        left_space = count_num_digit(editor->config.buff.size) + 2;
 
         // MOVE THE CURSOR THERE
-        col += count_num_digit(editor->buff.size) + 2;
+        col += count_num_digit(editor->config.buff.size) + 2;
 
         while(index < current->size) {
             move(row, col++);
@@ -519,7 +580,6 @@ void editor_render(EDITOR *editor) {
         current = current->next;
     }
 
-    
     while (row < height) {
         col = 0;
         move(row, col);
@@ -529,9 +589,165 @@ void editor_render(EDITOR *editor) {
         row++;
     }
 
-    move(editor->cursor.pos.row, editor->cursor.pos.col + left_space);
+    move(editor->config.cursor.pos.row, editor->config.cursor.pos.col + left_space);
     wrefresh(stdscr);
-    if (editor->buff.current_row != NULL) editor_print_meta_data_on_bottom_window(editor);
+    editor_print_meta_data_on_bottom_window(editor);
 }
+
+
+// IMPLEMENTATION OF THE UNDO OPERATION
+static ROW *copy_row(ROW *row) {
+    if (row == NULL) return NULL;
+
+    (void)editor;
+    ROW *result = (ROW *)malloc(sizeof(ROW));
+    
+    *result = (ROW) {
+        .size = row->size,
+        .cap = row->cap,
+    };
+
+    result->content = (char *)malloc(sizeof(char) * row->cap);
+    result->content = memcpy(result->content, row->content, sizeof(char) * row->size);
+
+    return result;
+}
+
+static ROW *get_current_rows(ROW *all_rows) {
+    ROW *rows = NULL;
+    ROW *current = all_rows;
+
+    ROW *prev_row = NULL;
+    ROW *curr_row = NULL;
+
+    while (current) {
+        // COPY THE CURRENT ROW
+        curr_row = copy_row(current);
+
+        // LINK THE PREVIOUS ROW WITH THE CURRENT ONE
+        if (prev_row) prev_row->next = curr_row;
+        else 
+            // IF NO PREV ROW IS THERE THAN MAKE THE HEAD OF THE ROWS
+            rows = curr_row;
+
+        // LINK THE CURRENT ROW WITH THE PREV ONE
+        curr_row->prev = prev_row;
+
+        // ADVANCE
+        prev_row = curr_row;
+
+        current = current->next;
+    }
+
+    if (curr_row) curr_row->next = NULL;
+
+    return rows;
+}
+
+static BUFFER get_current_buffer(BUFFER buffer, size_t current_row_position) {
+    BUFFER buff;
+
+    buff.size = buffer.size;
+    buff.rows = get_current_rows(buffer.rows);
+    
+    // GET THE CURRENT ROW BASED ON THE CURSOR POSITION
+    ROW *current = buff.rows;
+    size_t row = 0;
+    while (row != current_row_position) {
+        if (current == NULL) {
+            printf("ERROR IN THE EDITOR GET CURRENT BUFFER (CURRENT ROW SUPPOSED NOT NULL)\n");
+            exit(1);
+        }
+        row++;
+        current = current->next;
+    } 
+    
+    // SET THE CURRENT ROW
+    buff.current_row = current;
+
+    // SEARCH FOR THE TAIL OF THE ROWS
+
+    // IF CURRENT IS NULL => CASE WHERE THE EDITOR IS NOW INITIALIZED
+    if (current == NULL) buff.tail = current;
+    else {
+        while (current->next) {
+            current = current->next;
+        }
+    }   
+
+    // SET THE TAIL ROW
+    buff.tail = current;
+
+    return buff;
+}
+
+static EDITOR_CONFIG get_current_config(EDITOR_CONFIG curr_config) {
+    EDITOR_CONFIG config;
+
+    // COPY THE CURSOR AND MODE AND STATE DATA
+    config = (EDITOR_CONFIG) {
+        .cursor = curr_config.cursor,
+        .mode = curr_config.mode,
+        .state = curr_config.state,
+    };
+
+    // COPY THE CURRENT BUFFER
+    config.buff = get_current_buffer(curr_config.buff, curr_config.cursor.pos.row);
+
+    // COPY THE CURRENT FILE NAME
+    if (curr_config.FILE_NAME == NULL) {
+        config.FILE_NAME = NULL;
+    } else {
+        config.FILE_NAME = (char *)malloc(sizeof(char) * (MAX_INPUT_SIZE + 1));
+        config.FILE_NAME = memcpy(config.FILE_NAME, curr_config.FILE_NAME, MAX_INPUT_SIZE);
+    }
+
+    config.next = NULL;
+
+    return config;
+}
+
+static EDITOR_CONFIG editor_get_current_config(EDITOR *editor) {
+    return get_current_config(editor->config);
+}
+
+static void editor_push_current_config_to_stack(EDITOR *editor) {
+    EDITOR_CONFIG curr_config = editor_get_current_config(editor);
+    EDITOR_CONFIG *config = (EDITOR_CONFIG *)malloc(sizeof(EDITOR_CONFIG));
+    *config = curr_config;
+
+    // PUSH THE CURRENT CONFIG TO THE STACK
+    config->next = editor->snapshots;
+    editor->snapshots = config;
+}
+
+static EDITOR_CONFIG editor_pop_config(EDITOR *editor) {
+    // GET THE TOP OF THE STACK CONFIGURATION
+    EDITOR_CONFIG prev_config = *(editor->snapshots);
+
+    EDITOR_CONFIG *next = editor->snapshots->next;
+    
+    // FREE THE POINTER TO THE NEXT CONFIG
+    free(editor->snapshots);
+    editor->snapshots = next;
+
+    return prev_config;
+}
+
+static void editor_undo(EDITOR *editor) {
+    if(editor->snapshots == NULL) return;
+
+    // FREE ALL THE CONFIG 
+    editor_remove_config(editor);
+
+
+    editor->config = editor_pop_config(editor);
+}
+
+void editor_save_primary_snapshot(EDITOR *editor) {
+    editor_push_current_config_to_stack(editor);
+}
+
+
 
 #endif

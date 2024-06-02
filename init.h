@@ -95,13 +95,17 @@ static void editor_reset_theme(EDITOR *editor) {
 
 
 EDITOR editor_init() {
-    EDITOR editor = (EDITOR) {
-                .buff = buff_init(),
-                .cursor = cursor_init(),
-                .mode = NORMAL,
-                .state = RUNNING,
-                .FILE_NAME = NULL,
-            };
+    EDITOR editor = 
+    (EDITOR) {
+        .config = (EDITOR_CONFIG) {
+            .buff = buff_init(),
+            .cursor = cursor_init(),
+            .mode = NORMAL,
+            .state = RUNNING,
+            .FILE_NAME = NULL,
+        },
+        .snapshots = NULL,
+    };
     editor_init_bottom_window(&editor);
     editor_init_theme(&editor);
     editor_set_main_theme(&editor);
