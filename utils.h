@@ -41,4 +41,13 @@ char *get_file_content(char *filename, size_t *content_size) {
     return content;
 }
 
+int count_num_digit(size_t number) {
+    int count = 0;
+    while (number != 0) {
+        count++;
+        number /= 10;
+    }
+    return count;
+}
+
 #endif

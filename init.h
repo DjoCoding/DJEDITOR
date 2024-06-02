@@ -3,9 +3,11 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <ncurses.h>
 
 #include "./types.h"
 #include "./consts.h"
+#include "./macros.h"
 
 #define INIT_IMPLEMENTATION
 
@@ -66,6 +68,32 @@ void editor_init_bottom_window(EDITOR *editor) {
     wrefresh(editor->windows[BOTTOM_WINDOW]);
 }
 
+static void editor_init_theme(EDITOR *editor) {
+    (void)editor;
+    
+    start_color();
+
+    // INITIALZING THE MAIN COLOR THEME
+    INIT_MAIN_THEME();
+
+    // INITIALIZING THE LINE NUMBER COLOR THEME
+    INIT_LINE_NUMBER_THEME();
+}
+
+static void editor_set_main_theme(EDITOR *editor) {
+    (void)editor;
+    // FILL THE BACKGROUND OF THE WINDOW WITH THE MAIN THEME
+    wbkgd(stdscr, MAIN_THEME);
+}
+
+static void editor_reset_theme(EDITOR *editor) {
+    (void)editor;
+    
+    // GET BACK TO DEFAULT THEME
+    wbkgd(stdscr, use_default_colors());
+}
+
+
 EDITOR editor_init() {
     EDITOR editor = (EDITOR) {
                 .buff = buff_init(),
@@ -75,6 +103,8 @@ EDITOR editor_init() {
                 .FILE_NAME = NULL,
             };
     editor_init_bottom_window(&editor);
+    editor_init_theme(&editor);
+    editor_set_main_theme(&editor);
     return editor;
 }
 

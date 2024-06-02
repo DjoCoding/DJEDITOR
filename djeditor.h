@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <ncurses.h>
 
 #include "./consts.h"
 #include "./types.h"
@@ -448,28 +449,87 @@ void editor_load_file(EDITOR *editor, char *filename) {
     free(content);
 }
 
+static void editor_print_no_line(EDITOR *editor) {
+    (void)editor;
+
+    // SETTING THE COLOR
+    wattron(stdscr, LINE_NUMBER_THEME);
+
+    // PRINT THE NO ROW CHAR
+    waddch(stdscr, '~');
+
+    // RESET THE COLOR BACK
+	wattroff(stdscr, LINE_NUMBER_THEME);
+}
+
+static void editor_print_line_number(EDITOR *editor, size_t row) {
+    (void)editor;
+
+    // SETTING THE COLOR
+    wattron(stdscr, LINE_NUMBER_THEME);
+
+    size_t printed_row = (editor->cursor.pos.row + 1 == row) ? row : (size_t) abs((int) (editor->cursor.pos.row + 1- row));
+
+    // PRINT THE ROW
+    int num_digits = count_num_digit(editor->buff.size);
+    for (int i = 0; i < num_digits - count_num_digit(printed_row); i++) 
+        waddch(stdscr, ' ');
+
+    wprintw(stdscr, "%zu", printed_row);
+
+    // RESET THE COLOR BACK
+	wattroff(stdscr, LINE_NUMBER_THEME);
+}
 
 void editor_render(EDITOR *editor) {
+    size_t height, width;
+    getmaxyx(stdscr, height, width);
+
     wclear(stdscr);
     move(0, 0);
 
     ROW *current = editor->buff.rows;
     size_t row = 0, col = 0;
 
+    int left_space = 0;
+
+    // SET THE LEFT SPACE AFTER PRINTING THE NO LINE CHAR
+    if (editor->buff.size == 0) 
+        left_space = 2;
+
     while (current) {
         size_t index = 0;
         col = 0;
+
+        editor_print_line_number(editor, row + 1);
+
+        // COUNT THE SPACE TO MOVE THE CURSOR THERE AFTER PRINTTING THE LINE NUMBER
+        left_space = count_num_digit(editor->buff.size) + 2;
+
+        // MOVE THE CURSOR THERE
+        col += count_num_digit(editor->buff.size) + 2;
 
         while(index < current->size) {
             move(row, col++);
             waddch(stdscr, current->content[index++]); 
         }
 
+        waddch(stdscr, NEW_LINE_CHAR);
         row++;
         current = current->next;
     }
 
-    move(editor->cursor.pos.row, editor->cursor.pos.col);
+    
+    while (row < height) {
+        col = 0;
+        move(row, col);
+        editor_print_no_line(editor);
+        waddch(stdscr, NEW_LINE_CHAR);
+        move(row, col++);
+        row++;
+    }
+
+    move(editor->cursor.pos.row, editor->cursor.pos.col + left_space);
     wrefresh(stdscr);
     if (editor->buff.current_row != NULL) editor_print_meta_data_on_bottom_window(editor);
 }
