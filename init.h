@@ -10,30 +10,26 @@
 #define INIT_IMPLEMENTATION
 
 
+ROW *row_init() {
+    ROW *row = (ROW *)malloc(sizeof(ROW));
+    *row = (ROW) {
+        .content = (char *)malloc(sizeof(char) * BUFFER_ROW_INIITIAL_SIZE),
+        .size = 0,
+        .cap = BUFFER_ROW_INIITIAL_SIZE,
+        .next = NULL,
+        .prev = NULL,
+    };
+    return row;
+}
+
 BUFFER buff_init() {
     BUFFER buff = (BUFFER) {
-        .cap = BUFFER_INIITIAL_SIZE,
+        .rows = NULL,
+        .tail = NULL,
+        .current_row = NULL,
         .size = 0,
-        .content = (char *)malloc(sizeof(char) * BUFFER_INIITIAL_SIZE),
     };
-
     return buff;
-}
-
-BUFFER_LINE buff_line_init(POSITION pos, size_t index) {
-    return (BUFFER_LINE) {
-        .size = 0,
-        .cursor_pos = pos,
-        .cursor_index = index,
-    };
-}
-
-BUFFER_LINES buff_lines_init() {
-    return (BUFFER_LINES) {
-        .buff_lines = (BUFFER_LINE *)malloc(sizeof(BUFFER_LINE) * LINES_INITIAL_SIZE),
-        .size = 0,
-        .cap = LINES_INITIAL_SIZE,
-    };
 }
 
 POSITION pos_init(size_t row, size_t col) {
@@ -45,7 +41,6 @@ POSITION pos_init(size_t row, size_t col) {
 
 CURSOR cursor_init() {
     return (CURSOR) {
-        .index = 0,
         .pos = pos_init(0, 0),
     };
 }
@@ -54,7 +49,6 @@ CURSOR cursor_init() {
 WINDOW *window_init(size_t height, size_t width, size_t row, size_t col) {
     return newwin(height, width, row, col);
 }
-
 
 void editor_init_bottom_window(EDITOR *editor) {
     size_t window_height,window_width;
@@ -76,7 +70,6 @@ EDITOR editor_init() {
     EDITOR editor = (EDITOR) {
                 .buff = buff_init(),
                 .cursor = cursor_init(),
-                .lines = buff_lines_init(),
                 .mode = NORMAL,
                 .state = RUNNING,
                 .FILE_NAME = NULL,

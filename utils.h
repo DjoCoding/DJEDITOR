@@ -7,13 +7,6 @@
 #include "./types.h"
 #include "./init.h"
 
-
-POSITION get_ncurses_cursor_position() {
-    size_t row, col;
-    getyx(stdscr, row, col);
-    return pos_init(row, col);
-}
-
 void ncurses_init() {
     initscr();
     raw();
@@ -26,6 +19,9 @@ void ncurses_quit() {
 }
 
 char *get_file_content(char *filename, size_t *content_size) {
+    if (filename == NULL) 
+        return NULL;
+
     FILE *fp = fopen(filename, "r");
 
     if (fp == NULL) return NULL;
@@ -39,6 +35,8 @@ char *get_file_content(char *filename, size_t *content_size) {
     fread(content, (*content_size) * sizeof(char), 1, fp);
 
     content[*content_size] = NULL_TERMINATOR;
+
+    fclose(fp);
 
     return content;
 }

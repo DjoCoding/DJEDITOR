@@ -30,11 +30,9 @@ int main(int argc, char **argv) {
     } 
 
     editor_load_file(&editor, editor.FILE_NAME);
+    editor_render(&editor);
 
     int ch;
-
-    // PRINT THE META DATA
-    editor_print_meta_data_on_bottom_window(&editor);
 
     while (editor.state != EXIT) {        
         // READ USER INPUT
@@ -43,10 +41,10 @@ int main(int argc, char **argv) {
         // HANDLE USER INPUT
         editor_handle_event(&editor, ch);
 
-        // PRINT THE META DATA
-        editor_print_meta_data_on_bottom_window(&editor);
+        // RENDER
+        editor_render(&editor);
 
-        // APPLY CHANGES TO THE NCURSES WINDOW
+        // // APPLY CHANGES TO THE NCURSES WINDOW
         refresh();
 
         // LOOP
