@@ -59,7 +59,7 @@ void editor_save_primary_snapshot(EDITOR *editor);
 static void editor_undo(EDITOR *editor);
 // IMPLEMENTATION OF THE SEARCH OPERATION
 static size_t editor_search_in_row(EDITOR *editor, ROW *row, char *input, int input_size);
-static void editor_search(EDITOR *editor, ROW *start_searching_row, char *input);
+static void editor_search(EDITOR *editor, size_t row_number, ROW *start_searching_row, char *input);
 static void editor_search_for_next_word_like_input(EDITOR *editor);
 static void editor_handle_search(EDITOR *editor);
 // QUIT THE EDITOR
@@ -320,13 +320,14 @@ static void editor_handle_normal_char(EDITOR *editor, int ch) {
             editor_save_in_file(editor);
         }
         else if (ch == CTRL('f')) {
-            // SEARCH
+            // SEARCH FOR A STRING IN WHOLE FILE (FROM TOP TO BOTTOM)
             editor_handle_search(editor);
         }  else if (ch == CTRL('n')) {
             // SWITCH THE MODE TO NORMAL
             editor->config.mode = NORMAL;
 
         }  else if (ch == CTRL('d')) {
+            // SEARCH FOR A STRING IN NEXT ROWS
             editor_search_for_next_word_like_input(editor);
         } else {            
                 // PUT THE NEW CHAR AT PLACE TO RENDER AFTER
@@ -853,6 +854,9 @@ static bool editor_has_no_snapshots(EDITOR *editor) {
 // RETURN THE COLUMN + 1 IF THE STRING NOT FOUND ELSE RETURN 0
 static size_t editor_search_in_row(EDITOR *editor, ROW *row, char *input, int input_size) {
     (void)editor;
+    
+    if (row->size < input_size) return 0;
+
     size_t i = 0;
     bool isfound = false;
 
@@ -864,9 +868,11 @@ static size_t editor_search_in_row(EDITOR *editor, ROW *row, char *input, int in
     return 0;
 }
 
-static void editor_search(EDITOR *editor, ROW *start_searching_row, char *input) {
+static void editor_search(EDITOR *editor, size_t row_number, ROW *start_searching_row, char *input) {
     ROW *current = start_searching_row;
-    size_t row = 0;
+    
+    // MAKING IT GETTING THE ROW_NUMBER IS FOR MAKING THE CURSOR IN PLACE AFTER FINDING THE STRING
+    size_t row = row_number;
     size_t col = 0;
     size_t input_size = strlen(input);
 
@@ -880,7 +886,7 @@ static void editor_search(EDITOR *editor, ROW *start_searching_row, char *input)
     if (col != 0) {
         // UPDATE THE CURSOR LOCATION
         editor->config.cursor.pos.row = row;
-        editor->config.cursor.pos.col = col - 1;
+        editor->config.cursor.pos.col = col + input_size - 1;
         wmove(stdscr, editor->config.cursor.pos.row, editor->config.cursor.pos.col);
         // UPDATE THE CURRENT ROW POINTER
         editor->config.buff.current_row = current;
@@ -892,7 +898,7 @@ static void editor_search_for_next_word_like_input(EDITOR *editor) {
     do {
         editor_ask_user_for_input_on_bottom_window(editor, "string: ", input);
     } while (input[0] == NULL_TERMINATOR);
-    editor_search(editor, editor->config.buff.current_row, input);
+    editor_search(editor, editor->config.cursor.pos.row + 1, editor->config.buff.current_row->next, input);
 }
 
 
@@ -901,7 +907,7 @@ static void editor_handle_search(EDITOR *editor) {
     do {
         editor_ask_user_for_input_on_bottom_window(editor, "string: ", input);
     } while (input[0] == NULL_TERMINATOR);
-    editor_search(editor, editor->config.buff.rows, input);
+    editor_search(editor, 0, editor->config.buff.rows, input);
 }
 
 #endif
