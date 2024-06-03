@@ -32,7 +32,7 @@ char *get_file_content(char *filename, size_t *content_size) {
 
     char *content = (char *)malloc(sizeof(char) * ((*content_size) + 1));
 
-    fread(content, (*content_size) * sizeof(char), 1, fp);
+    fread(content, sizeof(char), *content_size, fp);
 
     content[*content_size] = NULL_TERMINATOR;
 

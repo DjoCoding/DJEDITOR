@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <time.h>
 #include <ncurses.h>
 
 #include "./consts.h"
@@ -27,10 +28,12 @@ static void editor_append_row_to_another(EDITOR *editor, ROW **dest, ROW **src);
 static void editor_add_new_row(EDITOR *editor);
 static void row_remove(ROW **row);
 // ADD THE CHARACTER TO THE EDITOR BUFFER
+static void editor_handle_new_line_char(EDITOR *editor);
 static void editor_handle_normal_char(EDITOR *editor, int ch);
 static void editor_buffer_add_char(EDITOR *editor, int ch);
 // GETTING INPUT FUNCTIONS
-static void editor_ask_user_for_input_on_bottom_window(EDITOR *editor);
+static char *editor_ask_user_for_input_on_bottom_window(EDITOR *editor, char *question, char *answer);
+static void editor_get_file_name(EDITOR *editor);
 // HANDLING THE ARROW KEYS FUNCTIONS
 static void editor_go_left(EDITOR *editor);
 static void editor_go_right(EDITOR *editor);
@@ -38,8 +41,8 @@ static void editor_go_down(EDITOR *editor);
 static void editor_go_up(EDITOR *editor);
 // REMOVE A CHAR FROM THE EDITOR BUFFER
 static void editor_remove_char(EDITOR *editor);
-// REMOVE THE EDITOR CURRENT CONFIG
-static void editor_remove_config(EDITOR *editor);
+// CHECK
+static bool editor_has_no_snapshots(EDITOR *editor);
 // RENDERING FUNCTIONS
 static void editor_print_no_line(EDITOR *editor);
 static void editor_print_line_number(EDITOR *editor, size_t row);
@@ -54,7 +57,14 @@ static void editor_push_current_config_to_stack(EDITOR *editor);
 static EDITOR_CONFIG editor_pop_config(EDITOR *editor);
 void editor_save_primary_snapshot(EDITOR *editor);
 static void editor_undo(EDITOR *editor);
+// IMPLEMENTATION OF THE SEARCH OPERATION
+static size_t editor_search_in_row(EDITOR *editor, ROW *row, char *input, int input_size);
+static void editor_search(EDITOR *editor, ROW *start_searching_row, char *input);
+static void editor_search_for_next_word_like_input(EDITOR *editor);
+static void editor_handle_search(EDITOR *editor);
 // QUIT THE EDITOR
+static void editor_remove_config(EDITOR *editor);
+static void editor_remove_snapshots(EDITOR *editor);
 void editor_quit();
 
 #define DJEDITOR_IMPLEMENTATION
@@ -115,6 +125,34 @@ static void editor_add_new_row(EDITOR *editor) {
     new_row = NULL;
 }
 
+static void editor_copy_after_cursor_to_next_row(EDITOR *editor) {
+    size_t col = editor->config.cursor.pos.col;
+
+    ROW *curr_row = editor->config.buff.current_row;
+    ROW *next_row = curr_row->next;
+
+    while (col + next_row->size < curr_row->size) {
+        next_row->content[next_row->size] = curr_row->content[col + next_row->size]; 
+        next_row->size++;
+    }
+
+    curr_row->size = col;
+
+    // CHANGE THE CURSOR POSITION WITH THE CURRENT ROW
+    editor->config.cursor.pos.row++;
+    editor->config.cursor.pos.col = 0;
+    editor->config.buff.current_row = next_row;
+    return;
+}
+
+// THIS FUNCTION WILL HANDLE THE CASE WHERE THE USER PRESS ENTER ON THE A LINE (MORE CHARS AFTER THE CURSOR POSITION)
+static void editor_handle_new_line_char(EDITOR *editor) {
+    editor_push_current_config_to_stack(editor);
+    editor_add_new_row(editor);
+    editor_copy_after_cursor_to_next_row(editor);
+    return; 
+}
+
 
 // ADDING A CHAR IN THE EDITOR BUFFER
 static void editor_buffer_add_char(EDITOR *editor, int ch) {
@@ -122,10 +160,15 @@ static void editor_buffer_add_char(EDITOR *editor, int ch) {
 
     // IF THE CHAR IS A NEW LINE CHAR ('\n') THEN WE ADD A NEW ROW IN THE BUFFER
     if(ch == NEW_LINE_CHAR) {
-        editor_push_current_config_to_stack(editor);
-        editor_add_new_row(editor);
-        editor_go_down(editor);
+        editor_handle_new_line_char(editor);
         return;
+    }
+
+    // GET THE SNAPSHOT OF THE CURRENT CONFIG
+    if (ch == '\t' || ch == ' ') editor_push_current_config_to_stack(editor);
+    
+    if (editor_has_no_snapshots(editor)) {
+        editor_push_current_config_to_stack(editor);
     }
     
     // IF NO ROW IS FOUND THEN MAKE A NEW ONE
@@ -145,6 +188,7 @@ static void editor_buffer_add_char(EDITOR *editor, int ch) {
         curr_row->content[i] = curr_row->content[i - 1];
         i--;
     }
+
     
     // PUT THE CHARACTER IN ITS PLACE
     curr_row->content[editor->config.cursor.pos.col] = ch;
@@ -157,49 +201,83 @@ static void editor_buffer_add_char(EDITOR *editor, int ch) {
     // MOVE THE CURSOR TO THE RIGHT
     editor_go_right(editor);
     
-    if (ch == '(' || ch == '{') {
-        int ch_rev;
-        switch (ch) {
-            case '(':
-                ch_rev = ')';
-                break;
-            case '{':
-                ch_rev = '}';
-                break;
-        }
+    // ADD MACROS LATER
+    // if (ch == '(' || ch == '{') {
+    //     int ch_rev;
+    //     switch (ch) {
+    //         case '(':
+    //             ch_rev = ')';
+    //             break;
+    //         case '{':
+    //             ch_rev = '}';
+    //             break;
+    //     }
 
-        editor_buffer_add_char(editor, ch_rev);
-        editor_go_left(editor);
-        return;
-    }
+    //     editor_buffer_add_char(editor, ch_rev);
+    //     editor_go_left(editor);
+    //     return;
+    // }
 } 
 
 // READ A STRING IN THE BOTTOM WINDOW 
 // (NEED TO HANDLE THE BACK SPACE KEY AND IGNORE THE TABS AND THE NEW LINE CHARS)
-static void editor_ask_user_for_input_on_bottom_window(EDITOR *editor) {
+static char *editor_ask_user_for_input_on_bottom_window(EDITOR *editor, char *question, char *answer) {
+    // CLEAR THE BOTTOM WINDOW
     wclear(editor->windows[BOTTOM_WINDOW]);
-    mvwprintw(editor->windows[BOTTOM_WINDOW], 0, 1, "type the file name: ");
+    
+
+    // MOVE THE CURSOR TO THE WINDOW
+    wmove(editor->windows[BOTTOM_WINDOW], 0, 1);
+
+    // ASK FOR INPUT
+    mvwprintw(editor->windows[BOTTOM_WINDOW], 0, 0, "%s", question);
     
     // APPLY CHANGES
     wrefresh(editor->windows[BOTTOM_WINDOW]);
     
-    editor->config.FILE_NAME = (char *)malloc(sizeof(char) * (MAX_INPUT_SIZE + 1));
-
     size_t input_size = 0;
     int ch;
     
     while (input_size < MAX_INPUT_SIZE) {
         ch = getch();
         if (ch == NEW_LINE_CHAR) break;
-
-        editor->config.FILE_NAME[input_size++] = ch;
-
-        // PRINT THE CHAR ENTERED TO THE SCREEN
-        waddch(editor->windows[BOTTOM_WINDOW], ch);
+        
+        // HANDLE THE BACK SPACE INSIDE THE BOTTOM WINDOW
+        if (ch == KEY_BACKSPACE) {
+            if (input_size > 0) {
+                input_size--;
+                size_t row, col;
+                getyx(editor->windows[BOTTOM_WINDOW], row, col);
+                wmove(editor->windows[BOTTOM_WINDOW], row, col - 1);
+                wdelch(editor->windows[BOTTOM_WINDOW]);
+            }
+        } else {
+            answer[input_size++] = ch;
+            // PRINT THE CHAR ENTERED TO THE SCREEN
+            waddch(editor->windows[BOTTOM_WINDOW], ch);
+        }
         wrefresh(editor->windows[BOTTOM_WINDOW]);
     }
 
-    editor->config.FILE_NAME[input_size] = NULL_TERMINATOR;
+    // MOVE THE CURSOR BACK TO ITS ORIGINAL PLACE
+    move(editor->config.cursor.pos.row, editor->config.cursor.pos.col);
+    
+    // SET THE NULL TERMINATOR 
+    answer[input_size] = NULL_TERMINATOR;
+
+    return answer;
+}
+
+
+
+static void editor_get_file_name(EDITOR *editor) {
+    char input[MAX_INPUT_SIZE + 1];
+
+    do {
+        editor_ask_user_for_input_on_bottom_window(editor, "type file name: ", input);
+    } while (input[0] == NULL_TERMINATOR);
+    
+    editor->config.FILE_NAME = input;
 }
 
 // SAVE THE CURRENT BUFFER OF THE EDITOR IN A FILE
@@ -211,10 +289,7 @@ void editor_save_in_file(EDITOR *editor) {
     
     while (current != NULL) {
         index = 0;
-        while (index < current->size) {
-            fprintf(fp, "%c", current->content[index]);
-            index++;
-        }
+        fwrite(current->content, sizeof(char) * current->size, 1, fp);
         fprintf(fp, "%c", NEW_LINE_CHAR);
         current = current->next;
     }
@@ -238,19 +313,22 @@ static void editor_handle_normal_char(EDITOR *editor, int ch) {
     } else if (editor->config.mode == INSERT) {
         if (ch == CTRL('s')) {
             // ASK THE USER FOR THE NAME OF THE FILE IF IT'S NOT PROVIDJEDITOR AT THE COMMAND LINE
-        
             if (editor->config.FILE_NAME == NULL) {
-                editor_ask_user_for_input_on_bottom_window(editor);
+                editor_get_file_name(editor);
             }
-
             // OPEN A NEW FILE AND COPY THE BUFFER THERE
             editor_save_in_file(editor);
-
-        } else if (ch == CTRL('d')) {
+        }
+        else if (ch == CTRL('f')) {
+            // SEARCH
+            editor_handle_search(editor);
+        }  else if (ch == CTRL('n')) {
             // SWITCH THE MODE TO NORMAL
             editor->config.mode = NORMAL;
 
-        }  else {            
+        }  else if (ch == CTRL('d')) {
+            editor_search_for_next_word_like_input(editor);
+        } else {            
                 // PUT THE NEW CHAR AT PLACE TO RENDER AFTER
                 editor_buffer_add_char(editor, ch);
             }
@@ -296,13 +374,13 @@ void editor_print_meta_data_on_bottom_window(EDITOR *editor) {
     size_t row = editor->config.cursor.pos.row, col = editor->config.cursor.pos.col;
 
     // SETTING BOLD FONT
-    wattron(editor->windows[BOTTOM_WINDOW], A_BOLD);
+    // wattron(editor->windows[BOTTOM_WINDOW], A_BOLD);
 
     // PRINTING...
     mvwprintw(editor->windows[BOTTOM_WINDOW], 0, 1, "%s", editor_stringfy_mode(editor));
 
     // GO TO THE CENTER
-    mvwprintw(editor->windows[BOTTOM_WINDOW], 0, (window_width - 15) / 2, "%ld : %ld", row, col);
+    mvwprintw(editor->windows[BOTTOM_WINDOW], 0, (window_width - 15) / 2, "%.3zu : %.3zu", row + 1, col + 1);
 
     // MAKE THE EDITOR STATE BLINKING
     wattron(editor->windows[BOTTOM_WINDOW], A_BLINK);
@@ -314,7 +392,12 @@ void editor_print_meta_data_on_bottom_window(EDITOR *editor) {
     wattroff(editor->windows[BOTTOM_WINDOW], A_BLINK);
 
     // SETTING OFF THE BOLD FONT
-    wattroff(editor->windows[BOTTOM_WINDOW], A_BOLD);
+    // wattroff(editor->windows[BOTTOM_WINDOW], A_BOLD);
+
+    // PRINT THE CURRENT TIME ON THE SCREEN
+    // time_t tm;
+    // time(&tm);
+    // mvwprintw(editor->windows[BOTTOM_WINDOW], 0, (window_width + 15) / 2, "%s", ctime(tm));
 
     // APPLY CHANGES ON THE WINDOW
     wrefresh(editor->windows[BOTTOM_WINDOW]);
@@ -452,7 +535,12 @@ EDITOR editor_begin(EDITOR *editor) {
 
 // QUITTING THE EDITOR AND DE-ALLOCATING ALL THE MEMORY USED
 void editor_quit() {
+    // REMOVE THE CURRENT CONFIG OF THE EDITOR
     editor_remove_config(&editor);
+
+    // REMOVE ALL THE AVAILABEL SNAPSHOTS
+    editor_remove_snapshots(&editor);
+
     delwin(editor.windows[BOTTOM_WINDOW]);
     endwin();
 }
@@ -484,7 +572,9 @@ static void remove_config(EDITOR_CONFIG *config) {
 static void editor_remove_config(EDITOR *editor) {
     // REMOVE THE EDITOR CURRENT CONFIG
     remove_config(&(editor->config));
+}
 
+static void editor_remove_snapshots(EDITOR *editor) {
     // DELETE ALL THE SNAPSHOTS
     EDITOR_CONFIG *config = editor->snapshots;
     while(config != NULL) {
@@ -502,10 +592,11 @@ void editor_load_file(EDITOR *editor, char *filename) {
     char *content = get_file_content(filename, &content_size);
 
     for (size_t i = 0; i < content_size; i++) {
+        printf("%c", content[i]);
         editor_handle_event(editor, content[i]);
     }
 
-    editor_render(editor);
+//    editor_render(editor);
     free(content);
 }
 
@@ -608,7 +699,11 @@ static ROW *copy_row(ROW *row) {
     };
 
     result->content = (char *)malloc(sizeof(char) * row->cap);
-    result->content = memcpy(result->content, row->content, sizeof(char) * row->size);
+
+    for (size_t i = 0; i < row->size; i++) {
+        result->content[i] = row->content[i];
+    }
+    // result->content = memcpy(result->content, row->content, sizeof(char) * row->size);
 
     return result;
 }
@@ -735,7 +830,7 @@ static EDITOR_CONFIG editor_pop_config(EDITOR *editor) {
 }
 
 static void editor_undo(EDITOR *editor) {
-    if(editor->snapshots == NULL) return;
+    if(editor_has_no_snapshots(editor)) return;
 
     // FREE ALL THE CONFIG 
     editor_remove_config(editor);
@@ -748,6 +843,65 @@ void editor_save_primary_snapshot(EDITOR *editor) {
     editor_push_current_config_to_stack(editor);
 }
 
+static bool editor_has_no_snapshots(EDITOR *editor) {
+    return (editor->snapshots == NULL);
+}   
 
+
+// IMPLEMENTATION OF THE SEARCH FUNCTIONALITY
+
+// RETURN THE COLUMN + 1 IF THE STRING NOT FOUND ELSE RETURN 0
+static size_t editor_search_in_row(EDITOR *editor, ROW *row, char *input, int input_size) {
+    (void)editor;
+    size_t i = 0;
+    bool isfound = false;
+
+    while (i < row->size - input_size + 1) {
+        isfound = (strncmp((char *)(row->content + i), input, input_size) == 0);
+        if (isfound) return (i + 1);
+        i++;
+    }
+    return 0;
+}
+
+static void editor_search(EDITOR *editor, ROW *start_searching_row, char *input) {
+    ROW *current = start_searching_row;
+    size_t row = 0;
+    size_t col = 0;
+    size_t input_size = strlen(input);
+
+    while (current != NULL) {
+        col = editor_search_in_row(editor, current, input, input_size);
+        if (col != 0) break;
+        row++;
+        current = current->next;
+    }
+
+    if (col != 0) {
+        // UPDATE THE CURSOR LOCATION
+        editor->config.cursor.pos.row = row;
+        editor->config.cursor.pos.col = col - 1;
+        wmove(stdscr, editor->config.cursor.pos.row, editor->config.cursor.pos.col);
+        // UPDATE THE CURRENT ROW POINTER
+        editor->config.buff.current_row = current;
+    }
+}
+
+static void editor_search_for_next_word_like_input(EDITOR *editor) {
+    char input[MAX_INPUT_SIZE + 1];
+    do {
+        editor_ask_user_for_input_on_bottom_window(editor, "string: ", input);
+    } while (input[0] == NULL_TERMINATOR);
+    editor_search(editor, editor->config.buff.current_row, input);
+}
+
+
+static void editor_handle_search(EDITOR *editor) {
+    char input[MAX_INPUT_SIZE + 1];
+    do {
+        editor_ask_user_for_input_on_bottom_window(editor, "string: ", input);
+    } while (input[0] == NULL_TERMINATOR);
+    editor_search(editor, editor->config.buff.rows, input);
+}
 
 #endif

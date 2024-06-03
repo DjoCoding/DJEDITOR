@@ -3,8 +3,8 @@
 #include <ncurses.h>
 #include <stdlib.h>
 
-#include "./types.h"
-#include "./djeditor.h"
+#include "./src/types.h"
+#include "./src/djeditor.h"
 
 // MAIN ENTRY POINT
 int main(int argc, char **argv) {
@@ -32,7 +32,9 @@ int main(int argc, char **argv) {
     // SAVE THE PRIMARY SNAPSHOT OF THE EDITOR
     editor_save_primary_snapshot(&editor);
 
+
     editor_load_file(&editor, editor.config.FILE_NAME);
+
     editor_render(&editor);
 
     int ch;
