@@ -30,7 +30,7 @@ static void editor_add_new_row(EDITOR *editor);
 static void row_remove(ROW **row);
 // ADD THE CHARACTER TO THE EDITOR BUFFER
 static void editor_handle_new_line_char(EDITOR *editor);
-static void editor_handle_normal_char(EDITOR *editor, int ch);
+static void editor_handle_char(EDITOR *editor, int ch);
 static void editor_shift_row_right(EDITOR *editor, ROW *row, size_t index);
 static void editor_shift_row_left(EDITOR *editor, ROW *row, size_t index);
 static void editor_buffer_add_char(EDITOR *editor, int ch);
@@ -47,24 +47,24 @@ static void editor_remove_char(EDITOR *editor);
 // CHECK
 static bool editor_has_no_snapshots(EDITOR *editor);
 // RENDERING FUNCTIONS
-static void editor_print_no_line(EDITOR *editor);
+static void editor_print_line_place_holder(EDITOR *editor);
 static void editor_print_line_number(EDITOR *editor, size_t row);
 void editor_render(EDITOR *editor);
 // IMPLEMENTATION OF THE UNDO OPERATION
 static ROW *copy_row(ROW *row);
 static ROW *get_current_rows(ROW *all_rows);
 static BUFFER get_current_buffer(BUFFER buffer, size_t current_row_position);
-static EDITOR_CONFIG get_current_config(EDITOR_CONFIG curr_config);
+static EDITOR_CONFIG get_current_config(EDITOR_CONFIG curr_config); // THIS WILL COPY THE WHOLE CONFIG PASSED
 static EDITOR_CONFIG editor_get_current_config(EDITOR *editor);
-static void editor_push_current_config_to_stack(EDITOR *editor);
+static void editor_push_current_config_to_snapshots_stack(EDITOR *editor);
 static EDITOR_CONFIG editor_pop_config(EDITOR *editor);
 void editor_save_primary_snapshot(EDITOR *editor);
-static void editor_undo(EDITOR *editor);
+static void editor_undo(EDITOR *editor);                 // MAIN FUNCTION
 // IMPLEMENTATION OF THE SEARCH OPERATION
 static size_t editor_search_in_row(EDITOR *editor, ROW *row, char *input, int input_size);
 static void editor_search(EDITOR *editor, size_t row_number, ROW *start_searching_row, char *input);
-static void editor_search_for_next_word_like_input(EDITOR *editor);
-static void editor_handle_search(EDITOR *editor);
+static void editor_search_input_after_cursor(EDITOR *editor);
+static void editor_handle_search(EDITOR *editor);         // MAIN FUNCTION
 // IMPLEMENTATION OF THE VISUAL MODE
 static POSITION editor_get_current_cursor_position(EDITOR *editor);
 static void editor_make_points_in_order(EDITOR *editor);
@@ -158,7 +158,7 @@ static void editor_copy_after_cursor_to_next_row(EDITOR *editor) {
 
 // THIS FUNCTION WILL HANDLE THE CASE WHERE THE USER PRESS ENTER ON THE A LINE (MORE CHARS AFTER THE CURSOR POSITION)
 static void editor_handle_new_line_char(EDITOR *editor) {
-    editor_push_current_config_to_stack(editor);
+    editor_push_current_config_to_snapshots_stack(editor);
     editor_add_new_row(editor);
     editor_copy_after_cursor_to_next_row(editor);
     return; 
@@ -195,10 +195,10 @@ static void editor_buffer_add_char(EDITOR *editor, int ch) {
     }
 
     // GET THE SNAPSHOT OF THE CURRENT CONFIG
-    if (ch == '\t' || ch == ' ') editor_push_current_config_to_stack(editor);
+    if (ch == '\t' || ch == ' ') editor_push_current_config_to_snapshots_stack(editor);
     
     if (editor_has_no_snapshots(editor)) {
-        editor_push_current_config_to_stack(editor);
+        editor_push_current_config_to_snapshots_stack(editor);
     }
     
     // IF NO ROW IS FOUND THEN MAKE A NEW ONE
@@ -328,7 +328,7 @@ void editor_save_in_file(EDITOR *editor) {
 // IF THE CHAR IS THE NEW LINE CHAR THEN UPDATE THE BUFFER LINES
 // UPDATE THE MODE IF WE'RE AT THE NORMAL MODE
 
-static void editor_handle_normal_char(EDITOR *editor, int ch) {
+static void editor_handle_char(EDITOR *editor, int ch) {
     if (editor->config.mode == NORMAL) {
         if (ch == 'i') {
             // SWITCH THE MODE TO INSERT
@@ -364,7 +364,7 @@ static void editor_handle_normal_char(EDITOR *editor, int ch) {
             editor_handle_search(editor);
         }  else if (ch == CTRL('d')) {
             // SEARCH FOR A STRING IN NEXT ROWS
-            editor_search_for_next_word_like_input(editor);
+            editor_search_input_after_cursor(editor);
         } else {            
                 // PUT THE NEW CHAR AT PLACE TO RENDER AFTER
                 editor_buffer_add_char(editor, ch);
@@ -584,7 +584,7 @@ void editor_handle_event(EDITOR *editor, int ch) {
             editor_go_down(editor);
             break;
         default:
-            editor_handle_normal_char(editor, ch);
+            editor_handle_char(editor, ch);
             break;
     }
 }
@@ -667,7 +667,7 @@ void editor_load_file(EDITOR *editor, char *filename) {
     free(content);
 }
 
-static void editor_print_no_line(EDITOR *editor) {
+static void editor_print_line_place_holder(EDITOR *editor) {
     (void)editor;
 
     // SETTING THE COLOR
@@ -858,7 +858,7 @@ void editor_render(EDITOR *editor) {
     while (row < height) {
         col = 0;
         wmove(editor->windows[MAIN_WINDOW].wind, row, col);
-        editor_print_no_line(editor);
+        editor_print_line_place_holder(editor);
         waddch(editor->windows[MAIN_WINDOW].wind, NEW_LINE_CHAR);
         wrefresh(editor->windows[MAIN_WINDOW].wind);
         wmove(editor->windows[MAIN_WINDOW].wind, row, col++);
@@ -992,7 +992,7 @@ static EDITOR_CONFIG editor_get_current_config(EDITOR *editor) {
     return get_current_config(editor->config);
 }
 
-static void editor_push_current_config_to_stack(EDITOR *editor) {
+static void editor_push_current_config_to_snapshots_stack(EDITOR *editor) {
     EDITOR_CONFIG curr_config = editor_get_current_config(editor);
     EDITOR_CONFIG *config = (EDITOR_CONFIG *)malloc(sizeof(EDITOR_CONFIG));
     *config = curr_config;
@@ -1026,7 +1026,7 @@ static void editor_undo(EDITOR *editor) {
 }
 
 void editor_save_primary_snapshot(EDITOR *editor) {
-    editor_push_current_config_to_stack(editor);
+    editor_push_current_config_to_snapshots_stack(editor);
 }
 
 static bool editor_has_no_snapshots(EDITOR *editor) {
@@ -1080,7 +1080,7 @@ static void editor_search(EDITOR *editor, size_t row_number, ROW *start_searchin
     }
 }
 
-static void editor_search_for_next_word_like_input(EDITOR *editor) {
+static void editor_search_input_after_cursor(EDITOR *editor) {
     char input[MAX_INPUT_SIZE + 1] = {0};
     do {
         editor_get_input(editor, "string: ", input);
@@ -1128,7 +1128,7 @@ static void editor_make_points_in_order(EDITOR *editor) {
 // DELETE ALL THE CONTENT FROM THE START POINT TO THE END POINT
 static void editor_delete_between_two_pos(EDITOR *editor) {
     // FIRST TAKE A SNAPSHOT
-    editor_push_current_config_to_stack(editor);
+    editor_push_current_config_to_snapshots_stack(editor);
 
     // THE START AND END POINT ARE IN THE VISUAL OF THE EDITOR
     editor_make_points_in_order(editor);
