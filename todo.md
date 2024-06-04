@@ -20,5 +20,8 @@
 // DONE
 + add the search functionality
 
-
+// DONE
 + add the visual mode
+
+
++ work on the replace functionality (BY GETTING INPUT AND REPLACING ALL THE OCCURENCES AND IN THE VISUAL MODE)
