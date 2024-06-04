@@ -8,7 +8,9 @@
 #include "./consts.h"
 
 typedef enum {
-    BOTTOM_WINDOW = 0,
+    MAIN_WINDOW = 0,
+    STATUS_WINDOW,
+    INPUT_WINDOW,
     WINDOW_COUNT,
 } WINDOW_TYPE;
 
@@ -46,6 +48,19 @@ typedef enum {
     EXIT,
 } STATE;
 
+typedef struct {
+    size_t row_start;
+    size_t col_start;
+} EDITOR_RENDERER;
+
+typedef struct {
+    WINDOW *wind;
+    size_t win_height;
+    size_t win_width;
+    POSITION win_pos;
+    EDITOR_RENDERER renderer;
+} EDITOR_WINDOW;
+
 typedef struct _EDITOR_CONFIG {
     BUFFER buff;
     CURSOR cursor;
@@ -58,7 +73,7 @@ typedef struct _EDITOR_CONFIG {
 typedef struct _EDITOR {
     EDITOR_CONFIG config;
     EDITOR_CONFIG *snapshots;                     // IMPLEMETING THE RE-DO AND UN-DO OPERATIONS
-    WINDOW *windows[WINDOW_COUNT];
+    EDITOR_WINDOW windows[WINDOW_COUNT];
 } EDITOR;
 
 #endif

@@ -16,9 +16,8 @@ int main(int argc, char **argv) {
         if (user_input_size > MAX_INPUT_SIZE)  { 
             fprintf(stderr, "ERROR: INPUT FILE NAME CAN NOT EXCEED %d CHARACTERS\n", MAX_INPUT_SIZE);
             editor_quit();
-            return 1;
+            return EXIT_FAILURE;
         } else { 
-            editor.config.FILE_NAME = (char *)malloc(sizeof(char) * (MAX_INPUT_SIZE + 1));
             memcpy(editor.config.FILE_NAME, argv[1], sizeof(char) * user_input_size);
         }
     } else 

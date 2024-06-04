@@ -2,6 +2,12 @@
     "files.associations": {
         "time.h": "c",
         "time_t.h": "c",
-        "types.h": "c"
+        "types.h": "c",
+        "array": "c",
+        "compare": "c",
+        "functional": "c",
+        "tuple": "c",
+        "type_traits": "c",
+        "utility": "c"
     }
 }

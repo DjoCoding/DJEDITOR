@@ -3,6 +3,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <unistd.h>
 #include <time.h>
 #include <ncurses.h>
@@ -30,9 +31,10 @@ static void row_remove(ROW **row);
 // ADD THE CHARACTER TO THE EDITOR BUFFER
 static void editor_handle_new_line_char(EDITOR *editor);
 static void editor_handle_normal_char(EDITOR *editor, int ch);
+static void editor_shift_row_right(EDITOR *editor, ROW *row, size_t index);
 static void editor_buffer_add_char(EDITOR *editor, int ch);
 // GETTING INPUT FUNCTIONS
-static char *editor_ask_user_for_input_on_bottom_window(EDITOR *editor, char *question, char *answer);
+static char *editor_get_input(EDITOR *editor, char *question, char *answer);
 static void editor_get_file_name(EDITOR *editor);
 // HANDLING THE ARROW KEYS FUNCTIONS
 static void editor_go_left(EDITOR *editor);
@@ -79,7 +81,7 @@ static void editor_resize_row(ROW **row) {
     (*row)->cap *= 2;
 
     // REALLOCATE MEMORY FOR IT
-    (*row)->content = realloc((*row)->content, (*row)->cap);
+    (*row)->content = (char *)realloc((*row)->content, (*row)->cap);
 }
 
 static void editor_resize_curr_row(EDITOR *editor) {
@@ -107,7 +109,7 @@ static void editor_append_row_to_another(EDITOR *editor, ROW **dest, ROW **src) 
 
 // THIS WILL ADD A NEW ROW AFTER THE CURRENT ROW IN THE BUFFER
 static void editor_add_new_row(EDITOR *editor) {
-    ROW *new_row = row_init(editor);
+    ROW *new_row = row_init();
     
     // IF THE EDITOR DOESN'T HAVE ANY LINES THEN UPDATE ALL THE POINTERS
     if (editor->config.buff.current_row == NULL) {
@@ -154,6 +156,16 @@ static void editor_handle_new_line_char(EDITOR *editor) {
 }
 
 
+// THE SHIFT OPERATION ON A WINDOW
+static void editor_shift_row_right(EDITOR *editor, ROW *row, size_t index) {
+    (void)editor;
+    size_t i = row->size;
+    while (i > index) {
+        row->content[i] = row->content[i - 1];
+        i--;
+    }
+}
+
 // ADDING A CHAR IN THE EDITOR BUFFER
 static void editor_buffer_add_char(EDITOR *editor, int ch) {
     ROW *curr_row = editor->config.buff.current_row;
@@ -183,13 +195,9 @@ static void editor_buffer_add_char(EDITOR *editor, int ch) {
     }
     
     // IF THE CURSOR ISN'T AT THE END OF THE LINE THEN SHIFT ALL THE CONTENT TO THE RIGHT OF THE CURSROR AND APPLY THE CHANGES
-    size_t i = curr_row->size;
-    while (i > editor->config.cursor.pos.col) {
-        curr_row->content[i] = curr_row->content[i - 1];
-        i--;
-    }
+    editor_shift_row_right(editor, curr_row, editor->config.cursor.pos.col);
 
-    
+
     // PUT THE CHARACTER IN ITS PLACE
     curr_row->content[editor->config.cursor.pos.col] = ch;
 
@@ -221,19 +229,19 @@ static void editor_buffer_add_char(EDITOR *editor, int ch) {
 
 // READ A STRING IN THE BOTTOM WINDOW 
 // (NEED TO HANDLE THE BACK SPACE KEY AND IGNORE THE TABS AND THE NEW LINE CHARS)
-static char *editor_ask_user_for_input_on_bottom_window(EDITOR *editor, char *question, char *answer) {
+static char *editor_get_input(EDITOR *editor, char *question, char *answer) {
     // CLEAR THE BOTTOM WINDOW
-    wclear(editor->windows[BOTTOM_WINDOW]);
+    wclear(editor->windows[INPUT_WINDOW].wind);
     
 
     // MOVE THE CURSOR TO THE WINDOW
-    wmove(editor->windows[BOTTOM_WINDOW], 0, 1);
+    wmove(editor->windows[INPUT_WINDOW].wind, 0, 1);
 
     // ASK FOR INPUT
-    mvwprintw(editor->windows[BOTTOM_WINDOW], 0, 0, "%s", question);
+    mvwprintw(editor->windows[INPUT_WINDOW].wind, 0, 0, "%s", question);
     
     // APPLY CHANGES
-    wrefresh(editor->windows[BOTTOM_WINDOW]);
+    wrefresh(editor->windows[INPUT_WINDOW].wind);
     
     size_t input_size = 0;
     int ch;
@@ -247,20 +255,22 @@ static char *editor_ask_user_for_input_on_bottom_window(EDITOR *editor, char *qu
             if (input_size > 0) {
                 input_size--;
                 size_t row, col;
-                getyx(editor->windows[BOTTOM_WINDOW], row, col);
-                wmove(editor->windows[BOTTOM_WINDOW], row, col - 1);
-                wdelch(editor->windows[BOTTOM_WINDOW]);
+                getyx(editor->windows[INPUT_WINDOW].wind, row, col);
+                wmove(editor->windows[INPUT_WINDOW].wind, row, col - 1);
+                wdelch(editor->windows[INPUT_WINDOW].wind);
+            } else {
+                
             }
         } else {
             answer[input_size++] = ch;
             // PRINT THE CHAR ENTERED TO THE SCREEN
-            waddch(editor->windows[BOTTOM_WINDOW], ch);
+            waddch(editor->windows[INPUT_WINDOW].wind, ch);
         }
-        wrefresh(editor->windows[BOTTOM_WINDOW]);
+        wrefresh(editor->windows[INPUT_WINDOW].wind);
     }
 
     // MOVE THE CURSOR BACK TO ITS ORIGINAL PLACE
-    move(editor->config.cursor.pos.row, editor->config.cursor.pos.col);
+    wmove(editor->windows[MAIN_WINDOW].wind, editor->config.cursor.pos.row, editor->config.cursor.pos.col);
     
     // SET THE NULL TERMINATOR 
     answer[input_size] = NULL_TERMINATOR;
@@ -271,24 +281,22 @@ static char *editor_ask_user_for_input_on_bottom_window(EDITOR *editor, char *qu
 
 
 static void editor_get_file_name(EDITOR *editor) {
-    char input[MAX_INPUT_SIZE + 1];
+    char input[MAX_INPUT_SIZE + 1] = {0};
 
     do {
-        editor_ask_user_for_input_on_bottom_window(editor, "type file name: ", input);
+        editor_get_input(editor, "type file name: ", input);
     } while (input[0] == NULL_TERMINATOR);
     
-    editor->config.FILE_NAME = input;
+    editor->config.FILE_NAME = (char *)malloc(sizeof(char) * (MAX_INPUT_SIZE + 1));
+    memcpy(editor->config.FILE_NAME, input, MAX_INPUT_SIZE + 1);
 }
 
 // SAVE THE CURRENT BUFFER OF THE EDITOR IN A FILE
 void editor_save_in_file(EDITOR *editor) {
     FILE *fp = fopen(editor->config.FILE_NAME, "w");
     ROW *current = editor->config.buff.rows;
-
-    size_t index;
     
     while (current != NULL) {
-        index = 0;
         fwrite(current->content, sizeof(char) * current->size, 1, fp);
         fprintf(fp, "%c", NEW_LINE_CHAR);
         current = current->next;
@@ -362,46 +370,61 @@ static char *editor_stringfy_mode(EDITOR *editor) {
 }
 
 void editor_print_meta_data_on_bottom_window(EDITOR *editor) {
+    
     // CLEARING THE WINDOW 
-    wclear(editor->windows[BOTTOM_WINDOW]);
+    wclear(editor->windows[STATUS_WINDOW].wind);
     
     // GETTING THE WINDOW SIZE
     size_t window_height, window_width;
-    (void) window_height;
-    
-    getmaxyx(editor->windows[BOTTOM_WINDOW], window_height, window_width);
+
+    window_height = editor->windows[STATUS_WINDOW].win_height;
+    window_width = editor->windows[STATUS_WINDOW].win_width;
 
     // GETTING THE CURSOR POSITION
     size_t row = editor->config.cursor.pos.row, col = editor->config.cursor.pos.col;
 
     // SETTING BOLD FONT
-    // wattron(editor->windows[BOTTOM_WINDOW], A_BOLD);
+    // wattron(editor->windows[STATUS_WINDOW].wind, A_BOLD);
+
+    // size_t row = window_height * 0.95;
 
     // PRINTING...
-    mvwprintw(editor->windows[BOTTOM_WINDOW], 0, 1, "%s", editor_stringfy_mode(editor));
+    mvwprintw(editor->windows[STATUS_WINDOW].wind, 1, 0, "%s", editor_stringfy_mode(editor));
+    // mvwprintw(editor->windows[MAIN_WINDOW].wind, row, 1, "%s", editor_stringfy_mode(editor));
+
 
     // GO TO THE CENTER
-    mvwprintw(editor->windows[BOTTOM_WINDOW], 0, (window_width - 15) / 2, "%.3zu : %.3zu", row + 1, col + 1);
+    mvwprintw(editor->windows[STATUS_WINDOW].wind, 1, (window_width - 15) / 2, "%.3zu : %.3zu", row + 1, col + 1);
+    // mvwprintw(editor->windows[MAIN_WINDOW].wind, row, (window_width - 15) / 2, "%.3zu : %.3zu", editor->config.cursor.pos.row + 1, editor->config.cursor.pos.col + 1);
+
 
     // MAKE THE EDITOR STATE BLINKING
-    wattron(editor->windows[BOTTOM_WINDOW], A_BLINK);
-    
+    wattron(editor->windows[STATUS_WINDOW].wind, A_BLINK);
+    // wattron(editor->windows[MAIN_WINDOW].wind, A_BLINK);
+
     // GO TO END OF LINE
-    mvwprintw(editor->windows[BOTTOM_WINDOW], 0, (window_width - 10), "%s", editor_stringfy_state(editor));
+    mvwprintw(editor->windows[STATUS_WINDOW].wind, 1, (window_width - 10), "%s", editor_stringfy_state(editor));
+    // mvwprintw(editor->windows[MAIN_WINDOW].wind, row, (window_width - 10), "%s", editor_stringfy_state(editor));
 
     // DISABLE THE BLIKING ATTRIBUTE
-    wattroff(editor->windows[BOTTOM_WINDOW], A_BLINK);
+    wattroff(editor->windows[STATUS_WINDOW].wind, A_BLINK);
+    // wattroff(editor->windows[MAIN_WINDOW].wind, A_BLINK);
+
 
     // SETTING OFF THE BOLD FONT
-    // wattroff(editor->windows[BOTTOM_WINDOW], A_BOLD);
+    // wattroff(editor->windows[STATUS_WINDOW].wind, A_BOLD);
 
     // PRINT THE CURRENT TIME ON THE SCREEN
     // time_t tm;
     // time(&tm);
-    // mvwprintw(editor->windows[BOTTOM_WINDOW], 0, (window_width + 15) / 2, "%s", ctime(tm));
+    // mvwprintw(editor->windows[STATUS_WINDOW].wind, 0, (window_width + 15) / 2, "%s", ctime(tm));
 
     // APPLY CHANGES ON THE WINDOW
-    wrefresh(editor->windows[BOTTOM_WINDOW]);
+    wrefresh(editor->windows[STATUS_WINDOW].wind);
+    // wrefresh(waddch(editor->windows[MAIN_WINDOW].wind);
+
+    (void)window_width;
+    (void)window_height;
 }
 
 
@@ -542,7 +565,10 @@ void editor_quit() {
     // REMOVE ALL THE AVAILABEL SNAPSHOTS
     editor_remove_snapshots(&editor);
 
-    delwin(editor.windows[BOTTOM_WINDOW]);
+    // DELETE ALL THE WINDOWS
+    for (int i = 0; i < WINDOW_COUNT; i++)  
+        delwin(editor.windows[i].wind);
+        
     endwin();
 }
 
@@ -605,69 +631,103 @@ static void editor_print_no_line(EDITOR *editor) {
     (void)editor;
 
     // SETTING THE COLOR
-    wattron(stdscr, LINE_NUMBER_THEME);
+    wattron(editor->windows[MAIN_WINDOW].wind, LINE_NUMBER_THEME);
 
     // PRINT THE NO ROW CHAR
-    waddch(stdscr, '~');
+    waddch(editor->windows[MAIN_WINDOW].wind, '~');
 
     // RESET THE COLOR BACK
-	wattroff(stdscr, LINE_NUMBER_THEME);
+	wattroff(editor->windows[MAIN_WINDOW].wind, LINE_NUMBER_THEME);
 }
 
 static void editor_print_line_number(EDITOR *editor, size_t row) {
     (void)editor;
 
     // SETTING THE COLOR
-    wattron(stdscr, LINE_NUMBER_THEME);
+    wattron(editor->windows[MAIN_WINDOW].wind, LINE_NUMBER_THEME);
 
-    size_t printed_row = (editor->config.cursor.pos.row + 1 == row) ? row : (size_t) abs((int) (editor->config.cursor.pos.row + 1- row));
+    size_t printed_row = (editor->config.cursor.pos.row + 1 == row) ? row : (size_t) abs((int) (editor->config.cursor.pos.row + 1 - row));
+    printed_row = row;
 
     // PRINT THE ROW
     int num_digits = count_num_digit(editor->config.buff.size);
     for (int i = 0; i < num_digits - count_num_digit(printed_row); i++) 
-        waddch(stdscr, ' ');
+        waddch(editor->windows[MAIN_WINDOW].wind, ' ');
 
-    wprintw(stdscr, "%zu", printed_row);
+    wprintw(editor->windows[MAIN_WINDOW].wind, "%zu", printed_row);
 
     // RESET THE COLOR BACK
-	wattroff(stdscr, LINE_NUMBER_THEME);
+	wattroff(editor->windows[MAIN_WINDOW].wind, LINE_NUMBER_THEME);
+}
+
+static ROW *editor_get_row_by_row_number(EDITOR *editor, size_t row_number) {
+    size_t i = 0;
+    ROW *current = editor->config.buff.rows;
+
+    while (i < row_number) {
+        current = current->next;
+        i++;
+    }
+
+    return current;
+}
+
+static void editor_set_row_render_start(EDITOR *editor, WINDOW_TYPE window_type) {
+    if (editor->windows[window_type].renderer.row_start > editor->config.cursor.pos.row) 
+        editor->windows[window_type].renderer.row_start =  editor->config.cursor.pos.row;
+
+    if (editor->windows[window_type].renderer.row_start + editor->windows[window_type].win_height < editor->config.cursor.pos.row) 
+        editor->windows[window_type].renderer.row_start =  editor->config.cursor.pos.row - editor->windows[window_type].win_height;
+}
+
+static void editor_set_col_render_start(EDITOR *editor, WINDOW_TYPE window_type) {
+    if (editor->windows[window_type].renderer.col_start > editor->config.cursor.pos.col) 
+        editor->windows[window_type].renderer.col_start =  0;
+
+    if (editor->windows[window_type].renderer.col_start + editor->windows[window_type].win_width < editor->config.cursor.pos.col) 
+        editor->windows[window_type].renderer.col_start =  editor->config.cursor.pos.col - editor->windows[window_type].win_width;
 }
 
 void editor_render(EDITOR *editor) {
-    size_t height, width;
-    getmaxyx(stdscr, height, width);
-    (void)width;
 
-    wclear(stdscr);
+    // SET THE THEME 
+    editor_set_main_theme(editor);
+
+    size_t height, width;
+
+    height = editor->windows[MAIN_WINDOW].win_height;
+    width = editor->windows[MAIN_WINDOW].win_width;
+    
+    wclear(editor->windows[MAIN_WINDOW].wind);
     move(0, 0);
 
-    ROW *current = editor->config.buff.rows;
+    // GET THE ROW AND COL WHERE WE GOING TO START PRINTING THE BUFFER
+    editor_set_row_render_start(editor, MAIN_WINDOW);
+    editor_set_col_render_start(editor, MAIN_WINDOW);
+
+    ROW *current = editor_get_row_by_row_number(editor, editor->windows[MAIN_WINDOW].renderer.row_start);
+
     size_t row = 0, col = 0;
 
-    int left_space = 0;
-
-    // SET THE LEFT SPACE AFTER PRINTING THE NO LINE CHAR
-    if (editor->config.buff.size == 0) 
-        left_space = 2;
-
-    while (current) {
+    // COUNT THE SPACE TO MOVE THE CURSOR THERE AFTER PRINTTING THE LINE NUMBER
+    int left_space = count_num_digit(editor->config.buff.size) + 2;
+    
+    while (current && (row < height)) {
         size_t index = 0;
         col = 0;
 
-        editor_print_line_number(editor, row + 1);
-
-        // COUNT THE SPACE TO MOVE THE CURSOR THERE AFTER PRINTTING THE LINE NUMBER
-        left_space = count_num_digit(editor->config.buff.size) + 2;
+        editor_print_line_number(editor, editor->windows[MAIN_WINDOW].renderer.row_start + row + 1);
 
         // MOVE THE CURSOR THERE
-        col += count_num_digit(editor->config.buff.size) + 2;
+        col += left_space;
 
-        while(index < current->size) {
-            move(row, col++);
-            waddch(stdscr, current->content[index++]); 
+        while(editor->windows[MAIN_WINDOW].renderer.col_start + index < current->size) {
+            wmove(editor->windows[MAIN_WINDOW].wind, row, col++);
+            waddch(editor->windows[MAIN_WINDOW].wind, current->content[editor->windows[MAIN_WINDOW].renderer.col_start + index]);
+            index++; 
         }
 
-        waddch(stdscr, NEW_LINE_CHAR);
+        waddch(editor->windows[MAIN_WINDOW].wind, NEW_LINE_CHAR);
         row++;
         current = current->next;
     }
@@ -676,14 +736,16 @@ void editor_render(EDITOR *editor) {
         col = 0;
         move(row, col);
         editor_print_no_line(editor);
-        waddch(stdscr, NEW_LINE_CHAR);
+        waddch(editor->windows[MAIN_WINDOW].wind, NEW_LINE_CHAR);
         move(row, col++);
         row++;
     }
 
-    move(editor->config.cursor.pos.row, editor->config.cursor.pos.col + left_space);
-    wrefresh(stdscr);
+    move(editor->config.cursor.pos.row - editor->windows[MAIN_WINDOW].renderer.row_start, editor->config.cursor.pos.col + left_space - editor->windows[MAIN_WINDOW].renderer.col_start);
+    wrefresh(editor->windows[MAIN_WINDOW].wind);
     editor_print_meta_data_on_bottom_window(editor);
+
+    (void)width;
 }
 
 
@@ -795,7 +857,7 @@ static EDITOR_CONFIG get_current_config(EDITOR_CONFIG curr_config) {
         config.FILE_NAME = NULL;
     } else {
         config.FILE_NAME = (char *)malloc(sizeof(char) * (MAX_INPUT_SIZE + 1));
-        config.FILE_NAME = memcpy(config.FILE_NAME, curr_config.FILE_NAME, MAX_INPUT_SIZE);
+        config.FILE_NAME = (char *)memcpy(config.FILE_NAME, curr_config.FILE_NAME, MAX_INPUT_SIZE);
     }
 
     config.next = NULL;
@@ -854,13 +916,15 @@ static bool editor_has_no_snapshots(EDITOR *editor) {
 // RETURN THE COLUMN + 1 IF THE STRING NOT FOUND ELSE RETURN 0
 static size_t editor_search_in_row(EDITOR *editor, ROW *row, char *input, int input_size) {
     (void)editor;
+
     
-    if (row->size < input_size) return 0;
+    
+    if (row->size < (size_t)input_size) return 0;
 
     size_t i = 0;
     bool isfound = false;
 
-    while (i < row->size - input_size + 1) {
+    while (i < row->size - (size_t)input_size + 1) {
         isfound = (strncmp((char *)(row->content + i), input, input_size) == 0);
         if (isfound) return (i + 1);
         i++;
@@ -887,27 +951,31 @@ static void editor_search(EDITOR *editor, size_t row_number, ROW *start_searchin
         // UPDATE THE CURSOR LOCATION
         editor->config.cursor.pos.row = row;
         editor->config.cursor.pos.col = col + input_size - 1;
-        wmove(stdscr, editor->config.cursor.pos.row, editor->config.cursor.pos.col);
+        wmove(editor->windows[MAIN_WINDOW].wind, editor->config.cursor.pos.row, editor->config.cursor.pos.col);
         // UPDATE THE CURRENT ROW POINTER
         editor->config.buff.current_row = current;
     }
 }
 
 static void editor_search_for_next_word_like_input(EDITOR *editor) {
-    char input[MAX_INPUT_SIZE + 1];
+    char input[MAX_INPUT_SIZE + 1] = {0};
     do {
-        editor_ask_user_for_input_on_bottom_window(editor, "string: ", input);
+        editor_get_input(editor, "string: ", input);
     } while (input[0] == NULL_TERMINATOR);
     editor_search(editor, editor->config.cursor.pos.row + 1, editor->config.buff.current_row->next, input);
 }
 
 
 static void editor_handle_search(EDITOR *editor) {
-    char input[MAX_INPUT_SIZE + 1];
+    char input[MAX_INPUT_SIZE + 1] = {0};
     do {
-        editor_ask_user_for_input_on_bottom_window(editor, "string: ", input);
+        editor_get_input(editor, "string: ", input);
     } while (input[0] == NULL_TERMINATOR);
     editor_search(editor, 0, editor->config.buff.rows, input);
 }
+
+
+// VISUAL MODE
+// static void 
 
 #endif

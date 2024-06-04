@@ -52,20 +52,47 @@ WINDOW *window_init(size_t height, size_t width, size_t row, size_t col) {
     return newwin(height, width, row, col);
 }
 
-void editor_init_bottom_window(EDITOR *editor) {
-    size_t window_height,window_width;
-    getmaxyx(stdscr, window_height, window_width);
+void editor_set_windows_config(EDITOR *editor) {
+    // INITIALIZE THE RENDRER OF ALL THE WINDOWS
+    for (int i = 0; i < WINDOW_COUNT; i++) {
+        editor->windows[i].renderer.row_start = 0;
+        editor->windows[i].renderer.col_start = 0;
+    }
 
-    box(editor->windows[BOTTOM_WINDOW], 0, 0);
+    size_t height, width;
+    getmaxyx(stdscr, height, width);
 
-    size_t height = window_height * 5 / 100;
-    size_t width  = window_width;
+    // INITIALIZE THE MAIN WINDOW CONFIG
+    editor->windows[MAIN_WINDOW].win_height = height - 5;
+    editor->windows[MAIN_WINDOW].win_width = width;
+    editor->windows[MAIN_WINDOW].win_pos = (POSITION) { .row = 0, .col = 0 }; 
 
-    size_t row_start = window_height - 2 * height;
-    size_t col_start = 1;
+    // INITIALIZE THE STATUS WINDOWS CONFIG
+    editor->windows[STATUS_WINDOW].win_height = 2;
+    editor->windows[STATUS_WINDOW].win_width = width;
+    editor->windows[STATUS_WINDOW].win_pos = (POSITION) { .row = height - 3, .col = 0 }; 
 
-    editor->windows[BOTTOM_WINDOW] = window_init(height, width, row_start, col_start);
-    wrefresh(editor->windows[BOTTOM_WINDOW]);
+
+    // INITIALIZE THE INPUT WINDOW CONFIG
+    editor->windows[INPUT_WINDOW].win_height = 1;
+    editor->windows[INPUT_WINDOW].win_width = width;
+    editor->windows[INPUT_WINDOW].win_pos = (POSITION) { .row = height - 1, .col = 0 }; 
+
+
+    return;
+}
+
+void editor_init_windows(EDITOR *editor) {
+    // SET EACH WINDOW CONFIGURATION
+    editor_set_windows_config(editor);
+
+    // INIT ALL THE WINDOWS WITH THEIR CONFIG 
+    for (int i = 0; i < WINDOW_COUNT; i++) {
+        EDITOR_WINDOW current = editor->windows[i];
+        editor->windows[i].wind = window_init(current.win_height, current.win_width, current.win_pos.row, current.win_pos.col);
+        // REFRESH THE WINDOW
+        wrefresh(editor->windows[i].wind);
+    }
 }
 
 static void editor_init_theme(EDITOR *editor) {
@@ -83,14 +110,16 @@ static void editor_init_theme(EDITOR *editor) {
 static void editor_set_main_theme(EDITOR *editor) {
     (void)editor;
     // FILL THE BACKGROUND OF THE WINDOW WITH THE MAIN THEME
-    wbkgd(stdscr, MAIN_THEME);
+    wbkgd(editor->windows[MAIN_WINDOW].wind, MAIN_THEME);
+    // SET THE THEME
+    wattron(editor->windows[MAIN_WINDOW].wind, MAIN_THEME);
 }
 
 static void editor_reset_theme(EDITOR *editor) {
     (void)editor;
     
     // GET BACK TO DEFAULT THEME
-    wbkgd(stdscr, use_default_colors());
+    wbkgd(editor->windows[MAIN_WINDOW].wind, use_default_colors());
 }
 
 
@@ -106,9 +135,13 @@ EDITOR editor_init() {
         },
         .snapshots = NULL,
     };
-    editor_init_bottom_window(&editor);
+
+    editor_init_windows(&editor);
+
+    editor_init_windows(&editor);
     editor_init_theme(&editor);
     editor_set_main_theme(&editor);
+
     return editor;
 }
 

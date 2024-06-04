@@ -16,4 +16,9 @@
 
 ++ need to fix the undo problem (rows contents are not handled well)    
 
+
+// DONE
 + add the search functionality
+
+
++ add the visual mode
