@@ -40,6 +40,7 @@ typedef struct {
 typedef enum {
     NORMAL, 
     INSERT, 
+    VISUAL,
 } MODE;
 
 typedef enum {
@@ -47,6 +48,11 @@ typedef enum {
     PENDING, 
     EXIT,
 } STATE;
+
+typedef struct {
+    POSITION start;
+    POSITION end;
+} EDITOR_VISUAL;
 
 typedef struct {
     size_t row_start;
@@ -74,6 +80,7 @@ typedef struct _EDITOR {
     EDITOR_CONFIG config;
     EDITOR_CONFIG *snapshots;                     // IMPLEMETING THE RE-DO AND UN-DO OPERATIONS
     EDITOR_WINDOW windows[WINDOW_COUNT];
+    EDITOR_VISUAL visual;
 } EDITOR;
 
 #endif

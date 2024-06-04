@@ -18,10 +18,10 @@ int main(int argc, char **argv) {
             editor_quit();
             return EXIT_FAILURE;
         } else { 
+            editor.config.FILE_NAME = (char *)malloc(sizeof(char) * (MAX_INPUT_SIZE + 1));
             memcpy(editor.config.FILE_NAME, argv[1], sizeof(char) * user_input_size);
         }
-    } else 
-        editor.config.FILE_NAME = NULL;
+    }        
 
     if (atexit(editor_quit) != 0) {
         fprintf(stderr, "FAILED TO SET EXIT FUNCTION\n");

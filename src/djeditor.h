@@ -32,6 +32,7 @@ static void row_remove(ROW **row);
 static void editor_handle_new_line_char(EDITOR *editor);
 static void editor_handle_normal_char(EDITOR *editor, int ch);
 static void editor_shift_row_right(EDITOR *editor, ROW *row, size_t index);
+static void editor_shift_row_left(EDITOR *editor, ROW *row, size_t index);
 static void editor_buffer_add_char(EDITOR *editor, int ch);
 // GETTING INPUT FUNCTIONS
 static char *editor_get_input(EDITOR *editor, char *question, char *answer);
@@ -64,6 +65,13 @@ static size_t editor_search_in_row(EDITOR *editor, ROW *row, char *input, int in
 static void editor_search(EDITOR *editor, size_t row_number, ROW *start_searching_row, char *input);
 static void editor_search_for_next_word_like_input(EDITOR *editor);
 static void editor_handle_search(EDITOR *editor);
+// IMPLEMENTATION OF THE VISUAL MODE
+static POSITION editor_get_current_cursor_position(EDITOR *editor);
+static void editor_make_points_in_order(EDITOR *editor);
+static void editor_set_start_visual_pos(EDITOR *editor);
+static void editor_set_end_visual_pos(EDITOR *editor);
+static void editor_delete_between_two_pos(EDITOR *editor);
+static void editor_visual_delete(EDITOR *editor);
 // QUIT THE EDITOR
 static void editor_remove_config(EDITOR *editor);
 static void editor_remove_snapshots(EDITOR *editor);
@@ -156,7 +164,7 @@ static void editor_handle_new_line_char(EDITOR *editor) {
 }
 
 
-// THE SHIFT OPERATION ON A WINDOW
+// THE SHIFT OPERATION ON A ROW
 static void editor_shift_row_right(EDITOR *editor, ROW *row, size_t index) {
     (void)editor;
     size_t i = row->size;
@@ -164,6 +172,15 @@ static void editor_shift_row_right(EDITOR *editor, ROW *row, size_t index) {
         row->content[i] = row->content[i - 1];
         i--;
     }
+}
+
+static void editor_shift_row_left(EDITOR *editor, ROW *row, size_t index) {
+    size_t i = index;
+    while (i < row->size) {
+        row->content[i] = row->content[i + 1];
+        i++;
+    };
+    (void)editor;
 }
 
 // ADDING A CHAR IN THE EDITOR BUFFER
@@ -317,6 +334,20 @@ static void editor_handle_normal_char(EDITOR *editor, int ch) {
             editor->config.mode = INSERT;
         } else if (ch == ':') {
             // HANDLE THE COMMANDS GIVEN
+        } else if (ch == 'v') {
+            editor->config.mode = VISUAL;
+            // SET THE START POINT
+            editor->visual.start = editor_get_current_cursor_position(editor);
+        }
+    } else if (editor->config.mode == VISUAL) {
+        if (ch == 'd') {
+            editor->visual.end = editor_get_current_cursor_position(editor);
+            editor_visual_delete(editor);
+            editor->config.mode = NORMAL;
+        } else if (ch == 'i') {
+            editor->config.mode = INSERT;
+        } else if (ch == 'n') {
+            editor->config.mode = NORMAL;
         }
     } else if (editor->config.mode == INSERT) {
         if (ch == CTRL('s')) {
@@ -330,10 +361,6 @@ static void editor_handle_normal_char(EDITOR *editor, int ch) {
         else if (ch == CTRL('f')) {
             // SEARCH FOR A STRING IN WHOLE FILE (FROM TOP TO BOTTOM)
             editor_handle_search(editor);
-        }  else if (ch == CTRL('n')) {
-            // SWITCH THE MODE TO NORMAL
-            editor->config.mode = NORMAL;
-
         }  else if (ch == CTRL('d')) {
             // SEARCH FOR A STRING IN NEXT ROWS
             editor_search_for_next_word_like_input(editor);
@@ -345,7 +372,7 @@ static void editor_handle_normal_char(EDITOR *editor, int ch) {
 }
 
 // ADDITIONAL FUNCTIONS
-static char *editor_stringfy_state(EDITOR *editor) {
+static char *editor_stringify_state(EDITOR *editor) {
     switch (editor->config.state) {
         case RUNNING: 
             return "RUNNING";
@@ -358,12 +385,14 @@ static char *editor_stringfy_state(EDITOR *editor) {
     }
 } 
 
-static char *editor_stringfy_mode(EDITOR *editor) {
+static char *editor_stringify_mode(EDITOR *editor) {
     switch (editor->config.mode) {
         case NORMAL:
             return "NORMAL";
         case INSERT:
             return "INSERT";
+        case VISUAL:    
+            return "VISUAL";
         default:
             return "NORMAL";
     }
@@ -389,8 +418,8 @@ void editor_print_meta_data_on_bottom_window(EDITOR *editor) {
     // size_t row = window_height * 0.95;
 
     // PRINTING...
-    mvwprintw(editor->windows[STATUS_WINDOW].wind, 1, 0, "%s", editor_stringfy_mode(editor));
-    // mvwprintw(editor->windows[MAIN_WINDOW].wind, row, 1, "%s", editor_stringfy_mode(editor));
+    mvwprintw(editor->windows[STATUS_WINDOW].wind, 1, 0, "%s", editor_stringify_mode(editor));
+    // mvwprintw(editor->windows[MAIN_WINDOW].wind, row, 1, "%s", editor_stringify_mode(editor));
 
 
     // GO TO THE CENTER
@@ -403,8 +432,8 @@ void editor_print_meta_data_on_bottom_window(EDITOR *editor) {
     // wattron(editor->windows[MAIN_WINDOW].wind, A_BLINK);
 
     // GO TO END OF LINE
-    mvwprintw(editor->windows[STATUS_WINDOW].wind, 1, (window_width - 10), "%s", editor_stringfy_state(editor));
-    // mvwprintw(editor->windows[MAIN_WINDOW].wind, row, (window_width - 10), "%s", editor_stringfy_state(editor));
+    mvwprintw(editor->windows[STATUS_WINDOW].wind, 1, (window_width - 10), "%s", editor_stringify_state(editor));
+    // mvwprintw(editor->windows[MAIN_WINDOW].wind, row, (window_width - 10), "%s", editor_stringify_state(editor));
 
     // DISABLE THE BLIKING ATTRIBUTE
     wattroff(editor->windows[STATUS_WINDOW].wind, A_BLINK);
@@ -486,12 +515,13 @@ static void editor_go_up(EDITOR *editor) {
 static void editor_remove_char(EDITOR *editor) {
     if (editor->config.cursor.pos.row <= 0 && editor->config.cursor.pos.col <= 0) return;
 
-    if (editor->config.buff.current_row->size == 0) {
-        if (editor->config.buff.current_row->prev == NULL) return;
+    ROW *curr_row = editor->config.buff.current_row;
+    if (curr_row->size == 0) {
+        if (curr_row->prev == NULL) return;
         
         editor_go_left(editor);
         
-        row_remove(&(editor->config.buff.current_row->next));
+        row_remove(&(curr_row->next));
         return;
     }
 
@@ -499,11 +529,7 @@ static void editor_remove_char(EDITOR *editor) {
     editor_go_left(editor);
 
     // SHIFT ALL THE BUFFER ONCE TO THE LEFT
-    size_t i = editor->config.cursor.pos.col;
-    while (i < editor->config.buff.current_row->size) {
-        editor->config.buff.current_row->content[i] = editor->config.buff.current_row->content[i + 1];
-        i++;
-    };
+    editor_shift_row_left(editor, curr_row, editor->config.cursor.pos.col);
 
 
     // SEE ABOVE THAT I MOVED THE CURSOR TO THE LEFT 
@@ -511,10 +537,10 @@ static void editor_remove_char(EDITOR *editor) {
     // THAT MEANS THE PREVIOUS POSITION OF THE CURSOR WAS AT POSITION 0
     
         // LATER I GOTTA MOVE ALL THE NEXT LINE (OF THE CURRENT ROW) TO THE PREV ROW AT THE END
-    if (editor->config.cursor.pos.col != editor->config.buff.current_row->size) editor->config.buff.current_row->size--;
+    if (editor->config.cursor.pos.col != curr_row->size) curr_row->size--;
     else 
         // IF WE ENCOUNTERED THE SITUATION ABOVE WE APPEND THE CURRENT ROW WITH IT'S PREVIOUS
-        editor_append_row_to_another(editor, &(editor->config.buff.current_row), &(editor->config.buff.current_row->next));
+        editor_append_row_to_another(editor, &curr_row, &(curr_row->next));
 }
 
 
@@ -523,6 +549,16 @@ void editor_handle_event(EDITOR *editor, int ch) {
     switch (ch) {
         case CTRL('c'):
             editor->config.state = EXIT;
+            break;
+        case CTRL('n'):
+            editor->config.mode = NORMAL;
+            break;
+        case CTRL('v'):
+            editor->config.mode = VISUAL;
+            editor_set_start_visual_pos(editor);
+            break;
+        case CTRL('i'):
+            editor->config.mode = INSERT;
             break;
         case CTRL('z'):
             editor_undo(editor);
@@ -623,7 +659,6 @@ void editor_load_file(EDITOR *editor, char *filename) {
         editor_handle_event(editor, content[i]);
     }
 
-//    editor_render(editor);
     free(content);
 }
 
@@ -664,7 +699,7 @@ static ROW *editor_get_row_by_row_number(EDITOR *editor, size_t row_number) {
     size_t i = 0;
     ROW *current = editor->config.buff.rows;
 
-    while (i < row_number) {
+    while ((current) && (i < row_number)) {
         current = current->next;
         i++;
     }
@@ -688,10 +723,83 @@ static void editor_set_col_render_start(EDITOR *editor, WINDOW_TYPE window_type)
         editor->windows[window_type].renderer.col_start =  editor->config.cursor.pos.col - editor->windows[window_type].win_width;
 }
 
-void editor_render(EDITOR *editor) {
+static bool editor_if_position_selected(EDITOR *editor, size_t row, size_t col) {
+    if (editor->config.mode != VISUAL) return false;
+    if (row < editor->visual.start.row) return false;
+    if (row > editor->config.cursor.pos.row) return false;
+    if (col < editor->visual.start.col) return false;
+    if (col > editor->config.cursor.pos.col) return false;
+    return true;
+}
 
-    // SET THE THEME 
-    editor_set_main_theme(editor);
+static size_t editor_render_visual_mode(EDITOR *editor, ROW *start_row, size_t left_space) {
+    size_t row = 0, col = 0;
+
+    ROW *current = start_row;
+
+    size_t row_start = editor->windows[MAIN_WINDOW].renderer.row_start;
+    size_t col_start = editor->windows[MAIN_WINDOW].renderer.col_start;
+
+    while (current) {
+        size_t index = 0;
+        col = 0;
+
+        editor_print_line_number(editor, row_start + row + 1);
+
+        // MOVE THE CURSOR THERE
+        col += left_space;
+
+        while(col_start + index < current->size) {
+            // HIGHLIGHT THE SELECTED TEXT
+            if (editor_if_position_selected(editor, row_start + row, col_start + col)) 
+                wattron(editor->windows[MAIN_WINDOW].wind, A_STANDOUT);
+
+            wmove(editor->windows[MAIN_WINDOW].wind, row, col++);
+            waddch(editor->windows[MAIN_WINDOW].wind, current->content[col_start + index]);
+            wattroff(editor->windows[MAIN_WINDOW].wind, A_STANDOUT);
+            
+            index++; 
+        }
+
+        waddch(editor->windows[MAIN_WINDOW].wind, NEW_LINE_CHAR);
+        row++;
+        current = current->next;
+    }
+}
+
+// THE SAME FUNCTION AS THE VISUAL ONE BUT WITHOUT HIGHLIGHTIN THE TEXT
+// RETURNS THE ROW WHERE IT FINISHED PRINTING
+static size_t editor_render_insert_mode(EDITOR *editor, ROW *start_row, size_t left_space) {
+    size_t row = 0, col = 0;
+
+    ROW *current = start_row;
+
+    size_t row_start = editor->windows[MAIN_WINDOW].renderer.row_start;
+    size_t col_start = editor->windows[MAIN_WINDOW].renderer.col_start;
+
+    while (current) {
+        size_t index = 0;
+        col = 0;
+
+        editor_print_line_number(editor, row_start + row + 1);
+
+        // MOVE THE CURSOR THERE
+        col += left_space;
+
+        while(col_start + index < current->size) {
+            wmove(editor->windows[MAIN_WINDOW].wind, row, col++);
+            waddch(editor->windows[MAIN_WINDOW].wind, current->content[col_start + index]);
+            wrefresh(editor->windows[MAIN_WINDOW].wind);
+            index++; 
+        }
+
+        waddch(editor->windows[MAIN_WINDOW].wind, NEW_LINE_CHAR);
+        row++;
+        current = current->next;
+    }
+}
+
+void editor_render(EDITOR *editor) {
 
     size_t height, width;
 
@@ -711,38 +819,23 @@ void editor_render(EDITOR *editor) {
 
     // COUNT THE SPACE TO MOVE THE CURSOR THERE AFTER PRINTTING THE LINE NUMBER
     int left_space = count_num_digit(editor->config.buff.size) + 2;
-    
-    while (current && (row < height)) {
-        size_t index = 0;
-        col = 0;
 
-        editor_print_line_number(editor, editor->windows[MAIN_WINDOW].renderer.row_start + row + 1);
-
-        // MOVE THE CURSOR THERE
-        col += left_space;
-
-        while(editor->windows[MAIN_WINDOW].renderer.col_start + index < current->size) {
-            wmove(editor->windows[MAIN_WINDOW].wind, row, col++);
-            waddch(editor->windows[MAIN_WINDOW].wind, current->content[editor->windows[MAIN_WINDOW].renderer.col_start + index]);
-            index++; 
-        }
-
-        waddch(editor->windows[MAIN_WINDOW].wind, NEW_LINE_CHAR);
-        row++;
-        current = current->next;
-    }
+    if(editor->config.mode == VISUAL) 
+        row = editor_render_visual_mode(editor, current, left_space);
+    else if (editor->config.mode == NORMAL || editor->config.mode == INSERT) 
+        row = editor_render_insert_mode(editor, current, left_space);
 
     while (row < height) {
         col = 0;
         move(row, col);
         editor_print_no_line(editor);
         waddch(editor->windows[MAIN_WINDOW].wind, NEW_LINE_CHAR);
+        wrefresh(editor->windows[MAIN_WINDOW].wind);
         move(row, col++);
         row++;
     }
 
     move(editor->config.cursor.pos.row - editor->windows[MAIN_WINDOW].renderer.row_start, editor->config.cursor.pos.col + left_space - editor->windows[MAIN_WINDOW].renderer.col_start);
-    wrefresh(editor->windows[MAIN_WINDOW].wind);
     editor_print_meta_data_on_bottom_window(editor);
 
     (void)width;
@@ -976,6 +1069,63 @@ static void editor_handle_search(EDITOR *editor) {
 
 
 // VISUAL MODE
-// static void 
+
+// RETURN THE CURRENT POSITION OF THE CURSOR
+static POSITION editor_get_current_cursor_position(EDITOR *editor) {
+    return editor->config.cursor.pos;
+}
+
+static void editor_set_start_visual_pos(EDITOR *editor) {
+    editor->visual.start = editor_get_current_cursor_position(editor);
+}
+
+static void editor_set_end_visual_pos(EDITOR *editor) {
+    editor->visual.end = editor_get_current_cursor_position(editor);
+}
+
+// I ALWAYS WANT THE START POINT TO BE BEFORE THE END POINT
+static void editor_make_points_in_order(EDITOR *editor) {
+    if (editor->visual.start.row < editor->visual.end.row) return;
+    if (editor->visual.start.row == editor->visual.end.row) 
+        if (editor->visual.start.col < editor->visual.end.col) return;
+
+    // THEN I HAVE TO SWAP THE ROWS AND THE COLS
+    swap(&editor->visual.start.row, &editor->visual.end.row);
+    swap(&editor->visual.start.col, &editor->visual.end.col);
+}
+
+// DELETE ALL THE CONTENT FROM THE START POINT TO THE END POINT
+static void editor_delete_between_two_pos(EDITOR *editor) {
+    // THE START AND END POINT ARE IN THE VISUAL OF THE EDITOR
+    editor_make_points_in_order(editor);
+
+    size_t start_row = editor->visual.start.row;
+    size_t end_row = editor->visual.end.row;
+    size_t start_col = editor->visual.start.col;
+    size_t end_col = editor->visual.end.col;
+
+
+    // IF THE ROWS ARE EQUAL
+    if (start_row == end_row) {
+        ROW *row = editor_get_row_by_row_number(editor, start_row);
+        for (size_t i = start_col; i < end_col + 1; i++) {
+            mvwaddch(editor->windows[MAIN_WINDOW].wind, 3, i, row->content[i]);
+        }
+        wrefresh(editor->windows[MAIN_WINDOW].wind);
+        delay_output(2000);
+
+        strncpy(row->content + start_col, row->content + end_col + 1, row->size - end_col);
+        size_t new_size = row->size - (end_col - start_col) - 1;
+        row->size = new_size;
+        editor->config.cursor.pos.col = start_col;
+    } else {
+        return;
+    }
+}
+
+static void editor_visual_delete(EDITOR *editor) {
+    editor_delete_between_two_pos(editor);
+}
+
 
 #endif

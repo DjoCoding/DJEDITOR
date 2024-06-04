@@ -50,4 +50,11 @@ int count_num_digit(size_t number) {
     return count;
 }
 
+void swap(size_t *a, size_t *b) {
+    size_t temp = *a;
+    *a = *b;
+    *b = temp;
+}
+
+
 #endif
