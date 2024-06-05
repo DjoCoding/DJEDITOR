@@ -31,28 +31,21 @@ int main(int argc, char **argv) {
     // SAVE THE PRIMARY SNAPSHOT OF THE EDITOR
     editor_save_primary_snapshot(&editor);
 
-
     editor_load_file(&editor, editor.config.FILE_NAME);
-
-    editor_render(&editor);
 
     int ch;
 
-    while (editor.config.state != EXIT) {        
+    do {
+        // RENDER
+        editor_render(&editor);
+
         // READ USER INPUT
         ch = getch();
 
         // HANDLE USER INPUT
         editor_handle_event(&editor, ch);
 
-        // RENDER
-        editor_render(&editor);
-
-        // // APPLY CHANGES TO THE NCURSES WINDOW
-        refresh();
-
-        // LOOP
-    }
+    } while(editor.config.state != EXIT);
 
     editor_quit();
 

@@ -72,6 +72,9 @@ static void editor_set_start_visual_pos(EDITOR *editor);
 static void editor_set_end_visual_pos(EDITOR *editor);
 static void editor_delete_between_two_pos(EDITOR *editor);
 static void editor_visual_delete(EDITOR *editor);
+static void editor_visual_replace_selected_text(EDITOR *editor);
+// IMPLEMENTATION OF THE REPLACE FUNCTIONALITY
+static void editor_replace_word(EDITOR *editor);
 // QUIT THE EDITOR
 static void editor_remove_config(EDITOR *editor);
 static void editor_remove_snapshots(EDITOR *editor);
@@ -277,8 +280,11 @@ static char *editor_get_input(EDITOR *editor, char *question, char *answer) {
                 wmove(editor->windows[INPUT_WINDOW].wind, row, col - 1);
                 wdelch(editor->windows[INPUT_WINDOW].wind);
             } else {
-                
+
             }
+        
+        } else if(ch == CTRL('c')) {
+            return NULL;
         } else {
             answer[input_size++] = ch;
             // PRINT THE CHAR ENTERED TO THE SCREEN
@@ -338,17 +344,20 @@ static void editor_handle_char(EDITOR *editor, int ch) {
         } else if (ch == 'v') {
             editor->config.mode = VISUAL;
             // SET THE START POINT
-            editor->visual.start = editor_get_current_cursor_position(editor);
+            editor_set_start_visual_pos(editor);
         }
     } else if (editor->config.mode == VISUAL) {
-        if (ch == 'd') {
-            editor->visual.end = editor_get_current_cursor_position(editor);
+        if (ch == 'd' || ch == KEY_BACKSPACE) {
+            editor_set_end_visual_pos(editor);
             editor_visual_delete(editor);
             editor->config.mode = NORMAL;
         } else if (ch == 'i') {
             editor->config.mode = INSERT;
         } else if (ch == 'n') {
             editor->config.mode = NORMAL;
+        } else if (ch == 'r') {
+            editor_set_end_visual_pos(editor);
+            editor_visual_replace_selected_text(editor);
         }
     } else if (editor->config.mode == INSERT) {
         if (ch == CTRL('s')) {
@@ -358,13 +367,17 @@ static void editor_handle_char(EDITOR *editor, int ch) {
             }
             // OPEN A NEW FILE AND COPY THE BUFFER THERE
             editor_save_in_file(editor);
-        }
-        else if (ch == CTRL('f')) {
+        } else if(ch == CTRL('r')) {
+            editor_replace_word(editor);
+        } else if (ch == CTRL('f')) {
             // SEARCH FOR A STRING IN WHOLE FILE (FROM TOP TO BOTTOM)
             editor_handle_search(editor);
         }  else if (ch == CTRL('d')) {
             // SEARCH FOR A STRING IN NEXT ROWS
             editor_search_input_after_cursor(editor);
+        } else if (ch == KEY_BACKSPACE) {
+            // REMOVE A CHARACTER FROM THE BUFFER
+            editor_remove_char(editor);
         } else {            
                 // PUT THE NEW CHAR AT PLACE TO RENDER AFTER
                 editor_buffer_add_char(editor, ch);
@@ -568,9 +581,6 @@ void editor_handle_event(EDITOR *editor, int ch) {
         case CTRL('z'):
             editor_undo(editor);
             break;
-        case KEY_BACKSPACE:
-            editor_remove_char(editor);
-            break;
         case KEY_LEFT: 
             editor_go_left(editor);
             break;
@@ -657,12 +667,18 @@ static void editor_remove_snapshots(EDITOR *editor) {
 void editor_load_file(EDITOR *editor, char *filename) {
     size_t content_size = 0;
 
+    // SET THE INSERT MODE
+    editor->config.mode = INSERT;
+
     char *content = get_file_content(filename, &content_size);
 
     for (size_t i = 0; i < content_size; i++) {
         printf("%c", content[i]);
         editor_handle_event(editor, content[i]);
     }
+
+    // RESET THE NORMAL MODE
+    editor->config.mode = NORMAL;
 
     free(content);
 }
@@ -719,12 +735,12 @@ static void editor_set_row_render_start(EDITOR *editor, WINDOW_TYPE window_type)
         editor->windows[window_type].renderer.row_start =  editor->config.cursor.pos.row - editor->windows[window_type].win_height + 1;
 }
 
-static void editor_set_col_render_start(EDITOR *editor, WINDOW_TYPE window_type) {
+static void editor_set_col_render_start(EDITOR *editor, WINDOW_TYPE window_type, size_t left_space) {
     if (editor->windows[window_type].renderer.col_start > editor->config.cursor.pos.col) 
-        editor->windows[window_type].renderer.col_start =  0;
+        editor->windows[window_type].renderer.col_start = editor->config.cursor.pos.col;
 
-    if (editor->windows[window_type].renderer.col_start + editor->windows[window_type].win_width < editor->config.cursor.pos.col) 
-        editor->windows[window_type].renderer.col_start =  editor->config.cursor.pos.col - editor->windows[window_type].win_width;
+    if (editor->windows[window_type].renderer.col_start + editor->windows[window_type].win_width - 1 < editor->config.cursor.pos.col + left_space) 
+        editor->windows[window_type].renderer.col_start =  editor->config.cursor.pos.col + left_space - editor->windows[window_type].win_width + 1;
 }
 
 static bool editor_if_position_selected(EDITOR *editor, size_t row, size_t col) {
@@ -816,7 +832,6 @@ static size_t editor_render_insert_mode(EDITOR *editor, ROW *start_row, size_t l
         while(col_start + index < current->size) {
             wmove(editor->windows[MAIN_WINDOW].wind, row, col++);
             waddch(editor->windows[MAIN_WINDOW].wind, current->content[col_start + index]);
-            wrefresh(editor->windows[MAIN_WINDOW].wind);
             index++; 
         }
 
@@ -838,38 +853,36 @@ void editor_render(EDITOR *editor) {
     wclear(editor->windows[MAIN_WINDOW].wind);
     move(0, 0);
 
+
+    // COUNT THE SPACE TO MOVE THE CURSOR THERE AFTER PRINTTING THE LINE NUMBER
+    int left_space = count_num_digit(editor->config.buff.size) + 2;
+
     // GET THE ROW AND COL WHERE WE GOING TO START PRINTING THE BUFFER
     editor_set_row_render_start(editor, MAIN_WINDOW);
-    editor_set_col_render_start(editor, MAIN_WINDOW);
+    editor_set_col_render_start(editor, MAIN_WINDOW, left_space);
 
     ROW *current = editor_get_row_by_row_number(editor, editor->windows[MAIN_WINDOW].renderer.row_start);
 
     size_t row = 0, col = 0;
 
-    // COUNT THE SPACE TO MOVE THE CURSOR THERE AFTER PRINTTING THE LINE NUMBER
-    int left_space = count_num_digit(editor->config.buff.size) + 2;
-
     if(editor->config.mode == VISUAL) 
         row = editor_render_visual_mode(editor, current, left_space);
-    else if (editor->config.mode == NORMAL || editor->config.mode == INSERT) 
+    else 
         row = editor_render_insert_mode(editor, current, left_space);
-
-    mvwprintw(editor->windows[MAIN_WINDOW].wind, 10, 5, "%zu", editor->windows[MAIN_WINDOW].renderer.row_start);
-    wrefresh(editor->windows[MAIN_WINDOW].wind);
 
     while (row < height) {
         col = 0;
         wmove(editor->windows[MAIN_WINDOW].wind, row, col);
         editor_print_line_place_holder(editor);
         waddch(editor->windows[MAIN_WINDOW].wind, NEW_LINE_CHAR);
-        wrefresh(editor->windows[MAIN_WINDOW].wind);
         wmove(editor->windows[MAIN_WINDOW].wind, row, col++);
         row++;
     }
 
     move(editor->config.cursor.pos.row - editor->windows[MAIN_WINDOW].renderer.row_start, editor->config.cursor.pos.col + left_space - editor->windows[MAIN_WINDOW].renderer.col_start);
     editor_print_meta_data_on_bottom_window(editor);
-
+    
+    wrefresh(editor->windows[MAIN_WINDOW].wind);
     (void)width;
 }
 
@@ -1041,8 +1054,6 @@ static bool editor_has_no_snapshots(EDITOR *editor) {
 // RETURN THE COLUMN + 1 IF THE STRING NOT FOUND ELSE RETURN 0
 static size_t editor_search_in_row(EDITOR *editor, ROW *row, char *input, int input_size) {
     (void)editor;
-
-    
     
     if (row->size < (size_t)input_size) return 0;
 
@@ -1054,6 +1065,25 @@ static size_t editor_search_in_row(EDITOR *editor, ROW *row, char *input, int in
         if (isfound) return (i + 1);
         i++;
     }
+
+    return 0;
+}
+
+// RETURNS THE INDEX OF THE FIRST OCCURENCE AFTER CURR_INDEX
+// RETURN THE COLUMN + 1 IF THE STRING NOT FOUND ELSE RETURN 0
+static size_t editor_search_in_row_for_multiple(EDITOR *editor, ROW *row, char *input, int input_size, size_t *curr_index) {
+    (void)editor;
+    
+    if (row->size < (size_t)input_size) return 0;
+
+    bool isfound = false;
+
+    while (*curr_index < row->size - (size_t)input_size + 1) {
+        isfound = (strncmp((char *)(row->content + (*curr_index)), input, input_size) == 0);
+        if (isfound) return *curr_index + 1;
+        *curr_index += 1;
+    }
+
     return 0;
 }
 
@@ -1191,6 +1221,102 @@ static void editor_delete_between_two_pos(EDITOR *editor) {
 
 static void editor_visual_delete(EDITOR *editor) {
     editor_delete_between_two_pos(editor);
+}
+
+// THE REPLACE FUNCTIONALITY IN THE VISUAL MODE
+static void editor_replace_word_in_row(EDITOR *editor, ROW **row, char *input, size_t input_size, char *word, size_t word_size) {
+    size_t curr_index = 0;
+
+    while (editor_search_in_row_for_multiple(editor, *row, input, input_size, &curr_index) != 0) {
+        // RESIZE THE WINDOW IF NEEDED
+        while (word_size - input_size + (*row)->size > (*row)->cap) editor_resize_row(editor, row);
+
+        // NOW SHIFT THE ROW TO THE RIGHT
+        char *dest = (*row)->content + curr_index + word_size;
+        char *src = (*row)->content + curr_index + input_size;
+        
+        if (word_size > input_size) 
+            strncpy(dest, src, (*row)->size + input_size - curr_index);
+        else 
+            strncpy(dest, src, (*row)->size - (curr_index + input_size));
+
+        // PUT THE NEW WORD
+        for (size_t i = 0; i < word_size; i++) {
+            (*row)->content[curr_index + i] = word[i];
+        }   
+
+
+        // UPDATE THE ROW SIZE
+        (*row)->size += word_size - input_size;
+
+        // UPDATE THE CURSOR
+        editor->config.cursor.pos.col = curr_index + word_size;
+    }
+
+    return;
+}
+
+static void editor_replace_word(EDITOR *editor) {
+    editor_push_current_config_to_snapshots_stack(editor);
+
+    char input[MAX_INPUT_SIZE + 1] = {0};
+    char word[MAX_INPUT_SIZE + 1] = {0};
+
+    do {
+        editor_get_input(editor, "replace: ", input);
+    } while (input[0] == NULL_TERMINATOR);
+
+    do {
+        editor_get_input(editor, "replace with: ", word);
+    } while (word[0] == NULL_TERMINATOR);
+
+    ROW *current_row = editor->config.buff.rows;
+
+    while (current_row) {
+        editor_replace_word_in_row(editor, &current_row, input, strlen(input), word, strlen(word));
+        current_row = current_row->next;
+    }
+}
+
+// GENERATE THE STRING FROM THE VISUAL POSITIONS
+static char *editor_get_string_from_visual(EDITOR *editor) {
+    editor_make_points_in_order(editor);
+
+    POSITION start = editor->visual.start, end = editor->visual.end;
+    size_t size = end.col - start.col + 1;
+
+    // GET THE STRING
+    char *string = (char *)malloc(sizeof(char) * (size + 1));
+    
+    // GET THE ROW
+    ROW *row = editor_get_row_by_row_number(editor, start.row);
+
+    // COPY THE STRING THERE
+    for (size_t i = 0; i < size; i++) {
+        string[i] = row->content[start.col + i];
+    }
+
+    string[size] = NULL_TERMINATOR;
+
+    // RETURN THE STRING
+    return string;
+}
+
+static void editor_visual_replace_selected_text(EDITOR *editor) {
+    char *input = editor_get_string_from_visual(editor);
+
+    ROW *current_row = editor->config.buff.rows;
+
+    char word[MAX_INPUT_SIZE + 1];
+
+    do {
+        editor_get_input(editor, "replace with: ", word);
+    } while (word[0] == NULL_TERMINATOR);
+
+    while (current_row) {
+        editor_replace_word_in_row(editor, &current_row, input, strlen(input), word, strlen(word));
+        current_row = current_row->next;
+    }
 }
 
 
