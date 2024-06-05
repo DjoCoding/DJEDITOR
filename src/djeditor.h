@@ -687,7 +687,6 @@ static void editor_print_line_number(EDITOR *editor, size_t row) {
     wattron(editor->windows[MAIN_WINDOW].wind, LINE_NUMBER_THEME);
 
     size_t printed_row = (editor->config.cursor.pos.row + 1 == row) ? row : (size_t) abs((int) (editor->config.cursor.pos.row + 1 - row));
-    printed_row = row;
 
     // PRINT THE ROW
     int num_digits = count_num_digit(editor->config.buff.size);
@@ -713,11 +712,11 @@ static ROW *editor_get_row_by_row_number(EDITOR *editor, size_t row_number) {
 }
 
 static void editor_set_row_render_start(EDITOR *editor, WINDOW_TYPE window_type) {
-    if (editor->windows[window_type].renderer.row_start > editor->config.cursor.pos.row) 
+    if (editor->windows[window_type].renderer.row_start > editor->config.cursor.pos.row)
         editor->windows[window_type].renderer.row_start =  editor->config.cursor.pos.row;
 
-    if (editor->windows[window_type].renderer.row_start + editor->windows[window_type].win_height < editor->config.cursor.pos.row) 
-        editor->windows[window_type].renderer.row_start =  editor->config.cursor.pos.row - editor->windows[window_type].win_height;
+    if (editor->windows[window_type].renderer.row_start + editor->windows[window_type].win_height - 1 < editor->config.cursor.pos.row) 
+        editor->windows[window_type].renderer.row_start =  editor->config.cursor.pos.row - editor->windows[window_type].win_height + 1;
 }
 
 static void editor_set_col_render_start(EDITOR *editor, WINDOW_TYPE window_type) {
@@ -765,7 +764,7 @@ static size_t editor_render_visual_mode(EDITOR *editor, ROW *start_row, size_t l
     size_t row_start = editor->windows[MAIN_WINDOW].renderer.row_start;
     size_t col_start = editor->windows[MAIN_WINDOW].renderer.col_start;
 
-    while (current) {
+    while (current  && (row < editor->windows[MAIN_WINDOW].win_height)) {
         size_t index = 0;
         col = 0;
 
@@ -805,7 +804,7 @@ static size_t editor_render_insert_mode(EDITOR *editor, ROW *start_row, size_t l
     size_t row_start = editor->windows[MAIN_WINDOW].renderer.row_start;
     size_t col_start = editor->windows[MAIN_WINDOW].renderer.col_start;
 
-    while (current) {
+    while (current  && (row < editor->windows[MAIN_WINDOW].win_height)) {
         size_t index = 0;
         col = 0;
 
@@ -854,6 +853,9 @@ void editor_render(EDITOR *editor) {
         row = editor_render_visual_mode(editor, current, left_space);
     else if (editor->config.mode == NORMAL || editor->config.mode == INSERT) 
         row = editor_render_insert_mode(editor, current, left_space);
+
+    mvwprintw(editor->windows[MAIN_WINDOW].wind, 10, 5, "%zu", editor->windows[MAIN_WINDOW].renderer.row_start);
+    wrefresh(editor->windows[MAIN_WINDOW].wind);
 
     while (row < height) {
         col = 0;

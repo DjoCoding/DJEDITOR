@@ -63,7 +63,7 @@ void editor_set_windows_config(EDITOR *editor) {
     getmaxyx(stdscr, height, width);
 
     // INITIALIZE THE MAIN WINDOW CONFIG
-    editor->windows[MAIN_WINDOW].win_height = height - 5;
+    editor->windows[MAIN_WINDOW].win_height = height - 4;
     editor->windows[MAIN_WINDOW].win_width = width;
     editor->windows[MAIN_WINDOW].win_pos = (POSITION) { .row = 0, .col = 0 }; 
 
@@ -74,9 +74,9 @@ void editor_set_windows_config(EDITOR *editor) {
 
 
     // INITIALIZE THE INPUT WINDOW CONFIG
-    editor->windows[INPUT_WINDOW].win_height = 1;
+    editor->windows[INPUT_WINDOW].win_height = 2;
     editor->windows[INPUT_WINDOW].win_width = width;
-    editor->windows[INPUT_WINDOW].win_pos = (POSITION) { .row = height - 1, .col = 0 }; 
+    editor->windows[INPUT_WINDOW].win_pos = (POSITION) { .row = height - 2, .col = 0 }; 
 
 
     return;
