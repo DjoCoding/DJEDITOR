@@ -12,6 +12,8 @@
 #include "./types.h"
 #include "./utils.h"
 #include "./macros.h"
+#include "./init.h"
+#include "./highlight.h"
 
 
 EDITOR editor = {0};
@@ -198,7 +200,7 @@ static void editor_buffer_add_char(EDITOR *editor, int ch) {
     }
 
     // GET THE SNAPSHOT OF THE CURRENT CONFIG
-    if (ch == '\t' || ch == ' ') editor_push_current_config_to_snapshots_stack(editor);
+    if (ch == ' ') editor_push_current_config_to_snapshots_stack(editor);
     
     if (editor_has_no_snapshots(editor)) {
         editor_push_current_config_to_snapshots_stack(editor);
@@ -214,21 +216,27 @@ static void editor_buffer_add_char(EDITOR *editor, int ch) {
     if (editor_check_curr_row_full(editor)) {
         editor_resize_curr_row(editor);
     }
-    
-    // IF THE CURSOR ISN'T AT THE END OF THE LINE THEN SHIFT ALL THE CONTENT TO THE RIGHT OF THE CURSROR AND APPLY THE CHANGES
-    editor_shift_row_right(editor, curr_row, editor->config.cursor.pos.col);
+
+    if (ch == '\t') {
+        for (int i = 0; i < 3; i++) {
+            editor_buffer_add_char(editor, ' ');
+        }
+        // editor_shift_row_left(editor, curr_row, editor->config.cursor.pos.col - 1);
+    } else {
+        // IF THE CURSOR ISN'T AT THE END OF THE LINE THEN SHIFT ALL THE CONTENT TO THE RIGHT OF THE CURSROR AND APPLY THE CHANGES
+        editor_shift_row_right(editor, curr_row, editor->config.cursor.pos.col);
+        
+        // PUT THE CHARACTER IN ITS PLACE
+        curr_row->content[editor->config.cursor.pos.col] = ch;
 
 
-    // PUT THE CHARACTER IN ITS PLACE
-    curr_row->content[editor->config.cursor.pos.col] = ch;
+        // INCREMENT THE CURRENT ROW SIZE
+        curr_row->size++;
 
 
-    // INCREMENT THE CURRENT ROW SIZE
-    curr_row->size++;
-
-
-    // MOVE THE CURSOR TO THE RIGHT
-    editor_go_right(editor);
+        // MOVE THE CURSOR TO THE RIGHT
+        editor_go_right(editor);
+    }
     
     // ADD MACROS LATER
     // if (ch == '(' || ch == '{') {
@@ -269,7 +277,11 @@ static char *editor_get_input(EDITOR *editor, char *question, char *answer) {
     
     while (input_size < MAX_INPUT_SIZE) {
         ch = getch();
-        if (ch == NEW_LINE_CHAR) break;
+        if (ch == NEW_LINE_CHAR) {
+            if (input_size == 0)
+                return NULL;
+            break;
+        }
         
         // HANDLE THE BACK SPACE INSIDE THE BOTTOM WINDOW
         if (ch == KEY_BACKSPACE) {
@@ -307,9 +319,8 @@ static char *editor_get_input(EDITOR *editor, char *question, char *answer) {
 static void editor_get_file_name(EDITOR *editor) {
     char input[MAX_INPUT_SIZE + 1] = {0};
 
-    do {
-        editor_get_input(editor, "type file name: ", input);
-    } while (input[0] == NULL_TERMINATOR);
+    if (editor_get_input(editor, "type file name: ", input) == NULL) 
+        return;
     
     editor->config.FILE_NAME = (char *)malloc(sizeof(char) * (MAX_INPUT_SIZE + 1));
     memcpy(editor->config.FILE_NAME, input, MAX_INPUT_SIZE + 1);
@@ -317,6 +328,8 @@ static void editor_get_file_name(EDITOR *editor) {
 
 // SAVE THE CURRENT BUFFER OF THE EDITOR IN A FILE
 void editor_save_in_file(EDITOR *editor) {
+    if (editor->config.FILE_NAME == NULL) return;
+
     FILE *fp = fopen(editor->config.FILE_NAME, "w");
     ROW *current = editor->config.buff.rows;
     
@@ -385,33 +398,6 @@ static void editor_handle_char(EDITOR *editor, int ch) {
     }
 }
 
-// ADDITIONAL FUNCTIONS
-static char *editor_stringify_state(EDITOR *editor) {
-    switch (editor->config.state) {
-        case RUNNING: 
-            return "RUNNING";
-        case PENDING: 
-            return "PENDING";
-        case EXIT:
-            return "EXIT";
-        default:
-            return "RUNNING"; 
-    }
-} 
-
-static char *editor_stringify_mode(EDITOR *editor) {
-    switch (editor->config.mode) {
-        case NORMAL:
-            return "NORMAL";
-        case INSERT:
-            return "INSERT";
-        case VISUAL:    
-            return "VISUAL";
-        default:
-            return "NORMAL";
-    }
-}
-
 void editor_print_meta_data_on_bottom_window(EDITOR *editor) {
     
     // CLEARING THE WINDOW 
@@ -431,8 +417,11 @@ void editor_print_meta_data_on_bottom_window(EDITOR *editor) {
 
     // size_t row = window_height * 0.95;
 
+    // ENABLE THE BRIGHT WHITE COLOR
+
+    wattron(editor->windows[STATUS_WINDOW].wind, COLOR_PAIR(IDENTIFIER_TYPE));
     // PRINTING...
-    mvwprintw(editor->windows[STATUS_WINDOW].wind, 1, 0, "%s", editor_stringify_mode(editor));
+    mvwprintw(editor->windows[STATUS_WINDOW].wind, 1, 0, "-- %s -- ", editor_stringify_mode(editor));
     // mvwprintw(editor->windows[MAIN_WINDOW].wind, row, 1, "%s", editor_stringify_mode(editor));
 
 
@@ -453,6 +442,7 @@ void editor_print_meta_data_on_bottom_window(EDITOR *editor) {
     wattroff(editor->windows[STATUS_WINDOW].wind, A_BLINK);
     // wattroff(editor->windows[MAIN_WINDOW].wind, A_BLINK);
 
+    wattroff(editor->windows[STATUS_WINDOW].wind, COLOR_PAIR(IDENTIFIER_TYPE));
 
     // SETTING OFF THE BOLD FONT
     // wattroff(editor->windows[STATUS_WINDOW].wind, A_BOLD);
@@ -526,6 +516,11 @@ static void editor_go_up(EDITOR *editor) {
     move(editor->config.cursor.pos.row, editor->config.cursor.pos.col);
 }
 
+
+char editor_get_current_char(EDITOR *editor) {
+    return (editor->config.buff.current_row->content[editor->config.cursor.pos.col]);
+}
+
 static void editor_remove_char(EDITOR *editor) {
     if (editor->config.cursor.pos.row <= 0 && editor->config.cursor.pos.col <= 0) return;
 
@@ -576,7 +571,10 @@ void editor_handle_event(EDITOR *editor, int ch) {
             editor_set_start_visual_pos(editor);
             break;
         case CTRL('i'):
-            editor->config.mode = INSERT;
+            if (editor->config.mode == INSERT)
+                editor_handle_char(editor, ch);
+            else
+                editor->config.mode = INSERT;
             break;
         case CTRL('z'):
             editor_undo(editor);
@@ -788,20 +786,44 @@ static size_t editor_render_visual_mode(EDITOR *editor, ROW *start_row, size_t l
 
         // MOVE THE CURSOR THERE
         col += left_space;
-
+        
+        editor_lex_row(editor, current, col_start, current->size);
+        size_t curr = 0;
+        size_t stop_at = 0;
+        int highlight = 0;
 
         while(col_start + index < current->size) {
             // HIGHLIGHT THE SELECTED TEXT
             if (editor_if_position_selected(editor, row_start + row, col_start + col - left_space)) 
                 wattron(editor->windows[MAIN_WINDOW].wind, A_STANDOUT);
-        
+            
+            if (index == editor->highlighter.arr.tokens[curr].first) {
+                highlight = 1;
+                stop_at = index + editor->highlighter.arr.tokens[curr].size;
+                curr++;
+            }   
+
             wmove(editor->windows[MAIN_WINDOW].wind, row, col++);
+
+            if (highlight) {
+                wattron(editor->windows[MAIN_WINDOW].wind, COLOR_PAIR(editor->highlighter.arr.tokens[curr - 1].type));
+            }
+        
             waddch(editor->windows[MAIN_WINDOW].wind, current->content[col_start + index]);
-            wattroff(editor->windows[MAIN_WINDOW].wind, A_STANDOUT);
             
             index++; 
+            
+            if (index == stop_at) {
+                highlight = 0;
+            }
+
+            wattroff(editor->windows[MAIN_WINDOW].wind, COLOR_PAIR(editor->highlighter.arr.tokens[curr - 1].type));
+            wattroff(editor->windows[MAIN_WINDOW].wind, A_STANDOUT);
         }
 
+        free(editor->highlighter.arr.tokens);
+        editor->highlighter = highlight_begin();
+        
         waddch(editor->windows[MAIN_WINDOW].wind, NEW_LINE_CHAR);
         row++;
         current = current->next;
@@ -820,7 +842,7 @@ static size_t editor_render_insert_mode(EDITOR *editor, ROW *start_row, size_t l
     size_t row_start = editor->windows[MAIN_WINDOW].renderer.row_start;
     size_t col_start = editor->windows[MAIN_WINDOW].renderer.col_start;
 
-    while (current  && (row < editor->windows[MAIN_WINDOW].win_height)) {
+    while (current && (row < editor->windows[MAIN_WINDOW].win_height)) {
         size_t index = 0;
         col = 0;
 
@@ -829,11 +851,37 @@ static size_t editor_render_insert_mode(EDITOR *editor, ROW *start_row, size_t l
         // MOVE THE CURSOR THERE
         col += left_space;
 
+        editor_lex_row(editor, current, col_start, current->size);
+        size_t curr = 0;
+        size_t stop_at = 0;
+        int highlight = 0;
+
         while(col_start + index < current->size) {
+            if (index == editor->highlighter.arr.tokens[curr].first) {
+                highlight = 1;
+                stop_at = index + editor->highlighter.arr.tokens[curr].size;
+                curr++;
+            }
+
             wmove(editor->windows[MAIN_WINDOW].wind, row, col++);
+            
+            if (highlight) {
+                wattron(editor->windows[MAIN_WINDOW].wind, COLOR_PAIR(editor->highlighter.arr.tokens[curr - 1].type));
+            }
+            
             waddch(editor->windows[MAIN_WINDOW].wind, current->content[col_start + index]);
+
             index++; 
+            
+            if (index == stop_at) {
+                highlight = 0;
+            }
+
+            wattroff(editor->windows[MAIN_WINDOW].wind, COLOR_PAIR(editor->highlighter.arr.tokens[curr - 1].type));
         }
+
+        free(editor->highlighter.arr.tokens);
+        editor->highlighter = highlight_begin();
 
         waddch(editor->windows[MAIN_WINDOW].wind, NEW_LINE_CHAR);
         row++;

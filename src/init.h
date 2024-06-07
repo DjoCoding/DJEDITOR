@@ -105,6 +105,15 @@ static void editor_init_theme(EDITOR *editor) {
 
     // INITIALIZING THE LINE NUMBER COLOR THEME
     INIT_LINE_NUMBER_THEME();
+
+    init_pair(IDENTIFIER_TYPE, BRIGHT_WHITE, BLACK);
+    init_pair(KEYWORD_TYPE, BRIGHT_RED, BLACK);
+    init_pair(PREPROCESSOR_TYPE, BRIGHT_GREEN, BLACK);
+    init_pair(SEPARATOR_TYPE, BRIGHT_YELLOW, BLACK);
+    init_pair(STRING_TYPE, BRIGHT_CYAN, BLACK);
+    init_pair(OPERATOR_TYPE, BRIGHT_CYAN, BLACK);
+    init_pair(COMMENT_TYPE, BRIGHT_BLACK, BLACK);
+    init_pair(COLON_TYPE, BRIGHT_WHITE, BLACK);
 }
 
 static void editor_set_main_theme(EDITOR *editor) {

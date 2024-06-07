@@ -4,8 +4,34 @@
 
 #include <stdio.h>
 #include <ncurses.h>
-
 #include "./consts.h"
+
+
+typedef enum {
+    IDENTIFIER_TYPE = 2,
+    KEYWORD_TYPE,
+    PREPROCESSOR_TYPE,
+    SEPARATOR_TYPE,
+    STRING_TYPE,
+    OPERATOR_TYPE,
+    COMMENT_TYPE,
+    COLON_TYPE,
+    END_TYPE,
+} TOKEN_TYPE;
+
+typedef struct {
+    TOKEN_TYPE type;
+    size_t first;
+    size_t size;
+} TOKEN;
+
+
+typedef struct {
+    TOKEN *tokens;
+    size_t count;
+    size_t size;
+} TOKEN_ARR;
+
 
 typedef enum {
     MAIN_WINDOW = 0,
@@ -76,11 +102,18 @@ typedef struct _EDITOR_CONFIG {
     struct _EDITOR_CONFIG *next;
 } EDITOR_CONFIG;
 
+typedef struct {
+    TOKEN_ARR arr;
+    size_t current;
+    int inside_comment;
+} EDITOR_HIGHLIGHTER;
+
 typedef struct _EDITOR {
     EDITOR_CONFIG config;
     EDITOR_CONFIG *snapshots;                     // IMPLEMETING THE RE-DO AND UN-DO OPERATIONS
     EDITOR_WINDOW windows[WINDOW_COUNT];
     EDITOR_VISUAL visual;
+    EDITOR_HIGHLIGHTER highlighter;
 } EDITOR;
 
 #endif

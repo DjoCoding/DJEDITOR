@@ -5,12 +5,12 @@
 
 // COLORS DEFINITION
 #define BLACK                    0
-#define BLUE                     1
+#define RED                      1
 #define GREEN                    2
-#define CYAN                     3
-#define RED                      4
+#define YELLOW                   3
+#define BLUE                     4
 #define MAGNETA                  5
-#define YELLOW                   6 
+#define CYAN                     6 
 #define WHITE                    7
 #define BRIGHT_BLACK             8
 #define BRIGHT_RED               9
@@ -25,8 +25,8 @@
 #define _MAIN_THEME 1
 #define _LINE_NUMBER_COLOR 2
 
-#define INIT_MAIN_THEME() init_pair(_MAIN_THEME, BRIGHT_CYAN, COLOR_BLACK)
-#define INIT_LINE_NUMBER_THEME() init_pair(_LINE_NUMBER_COLOR, COLOR_YELLOW, COLOR_BLACK)
+#define INIT_MAIN_THEME() init_pair(_MAIN_THEME, IDENTIFIER_TYPE, COLOR_BLACK)
+#define INIT_LINE_NUMBER_THEME() init_pair(_LINE_NUMBER_COLOR, YELLOW, COLOR_BLACK)
 
 // THEMES DEFINITION
 #define MAIN_THEME COLOR_PAIR(_MAIN_THEME)
