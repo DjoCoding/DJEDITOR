@@ -1,7 +1,9 @@
-#ifndef MACROS_H
-#define MACROS_H
+#ifndef CONSTS_H
+#define CONSTS_H
 
-#define CTRL(x) ((x) & 31)
+#define BUFFER_ROW_INIITIAL_SIZE 1024
+#define TOKENS_INITIAL_SIZE 100
+#define MAX_INPUT_SIZE 30
 
 // COLORS DEFINITION
 #define BLACK                    0
@@ -21,15 +23,7 @@
 #define BRIGHT_CYAN             14  
 #define BRIGHT_WHITE            15 
 
-
-#define _MAIN_THEME 1
-#define _LINE_NUMBER_COLOR 2
-
-#define INIT_MAIN_THEME() init_pair(_MAIN_THEME, IDENTIFIER_TYPE, COLOR_BLACK)
-#define INIT_LINE_NUMBER_THEME() init_pair(_LINE_NUMBER_COLOR, YELLOW, COLOR_BLACK)
-
-// THEMES DEFINITION
-#define MAIN_THEME COLOR_PAIR(_MAIN_THEME)
-#define LINE_NUMBER_THEME COLOR_PAIR(_LINE_NUMBER_COLOR)
+#define NEW_LINE_CHAR '\n'
+#define NULL_TERMINATOR '\0'
 
 #endif

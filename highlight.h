@@ -1,21 +1,15 @@
+#ifndef HIGHLIGHT_H
+#define HIGHLIGHT_H
+
+#include "./types.h"
 #include "./lexer.h"
-#include "utils.h"
+#include "./utils.h"
+#include "./sv.h"
+
 #include <string.h>
-#include <stdio.h>
-#include <stdlib.h>
 
-int iskeyword(STRING_VIEW *sv, size_t first, size_t size) {
-    for (int i = 0; i < ARR_SIZE(keywords); i++) {
-        if (size == strlen(keywords[i]) && strncmp(sv->content + first, keywords[i], size) == 0) {
-            return 1;
-        }
-    }
-    return 0;
-}
 
-size_t inside_comment = 0;
-
-TOKEN get_next_token(STRING_VIEW *sv) {
+TOKEN get_next_token(EDITOR *editor, STRING_VIEW *sv) {
     size_t first = sv->current;
     size_t size = 1;
     TOKEN_TYPE type = IDENTIFIER_TYPE;
@@ -23,7 +17,8 @@ TOKEN get_next_token(STRING_VIEW *sv) {
     int ch = sv_peek(sv);
     int quote_type;
 
-    if (inside_comment) {
+    // CHECK IF WE ARE IN THE COMMENT MODE
+    if (editor->highlight.inside_comment) {
         while (!sv_end(sv)) {
             ch = sv_peek(sv);
             size++;
@@ -33,7 +28,7 @@ TOKEN get_next_token(STRING_VIEW *sv) {
                 if (sv_peek(sv) == '/') {
                     size++;
                     sv_consume(sv);
-                    inside_comment = 0;
+                    editor->highlight.inside_comment = 0;
                     break;
                 }
             }
@@ -45,12 +40,16 @@ TOKEN get_next_token(STRING_VIEW *sv) {
         if (ch == '/') {
             type = COMMENT_TYPE;
             while (!sv_end(sv)) {
-                if (sv_peek(sv) == '\n') break;
+                if (sv_peek(sv) == NEW_LINE_CHAR) {
+                    sv_consume(sv);
+                    break;
+                }
+                
                 size++;
                 sv_consume(sv);
             }
         } else if (ch == '*') {
-            inside_comment = 1;
+            editor->highlight.inside_comment = 1;
             size++;
             sv_consume(sv);
             type = COMMENT_TYPE;
@@ -60,7 +59,10 @@ TOKEN get_next_token(STRING_VIEW *sv) {
     } else if (istag(ch)) {
         size = 0;
         while (!sv_end(sv)) {
-            if (sv_peek(sv) == '\n') break;
+            if (sv_peek(sv) == NEW_LINE_CHAR) {
+                sv_consume(sv);
+                break;
+            }
             size++;
             sv_consume(sv);
         }
@@ -90,74 +92,59 @@ TOKEN get_next_token(STRING_VIEW *sv) {
     }
 
     if (type == IDENTIFIER_TYPE) {
-        size = 0;
+        sv_consume(sv);
         while (!sv_end(sv)) {
             if (isvalid(sv_peek(sv))) {
                 size++;
                 sv_consume(sv);
-            } else {
-                break;
-            }
+            } else break;
         }
         if (iskeyword(sv, first, size)) {
             type = KEYWORD_TYPE;
-        }
+        } 
     }
 
     return token_init(type, first, size);
 }
 
-size_t get_row(char *content, size_t index) {
-    size_t count = 0;
-    for(size_t i = 0; i < index; i++) {
-        if (content[i] == '\n')
-            count++;
+void print_sv(STRING_VIEW *sv, size_t first, size_t size) {
+    for (size_t i = 0; i < size; i++) {
+        printf("%c", sv->content[first + i]);
     }
-    return count;
 }
 
-size_t get_col(char *content, size_t index) {
-    size_t count = 0;
-    for(size_t i = 0; i < index; i++) {
-        if (content[i] == '\n')
-            count = 0;
-    }
-    return count;
+void print_token(STRING_VIEW *sv, TOKEN token) {
+    print_sv(sv, token.first, token.size);
+    printf("\t%zu:%zu -> ", token.first, token.size);
+    stringify(token.type);
+    printf("\n");
 }
 
-TOKEN_ARR lex(STRING_VIEW *sv) {
-    TOKEN_ARR arr = tokens_init();
-    while (!sv_end(sv)) {
-        int ch = sv_peek(sv);
+void editor_lex_row(EDITOR *editor, size_t begin, size_t size) {
+    STRING_VIEW sv = sv_init(editor->buffer.content + begin, size);
+
+    while (!sv_end(&sv)) {
+        int ch = sv_peek(&sv);
         if (ch == '\t' || ch == ' ' || ch == '\n') {
-            sv_consume(sv);
+            sv_consume(&sv);
         } else {
-            TOKEN token = get_next_token(sv);
-            tokens_push(&arr, token);
-            print_token(sv, token);
-            // printf("%zu:%zu\n", get_row(sv->content, token.first), get_col(sv->content, sv->current));
+            TOKEN token = get_next_token(editor, &sv);
+            tokens_push(&editor->highlight.arr, token);
         }
     }
-    return arr;
 }
 
-void print_tokens(STRING_VIEW *sv, TOKEN_ARR arr) {
-    for (size_t i = 0; i < arr.count; i++) {
-        print_token(sv, arr.tokens[i]);
-    }
+int editor_highlight_end(EDITOR *editor) {
+    return (editor->highlight.current == editor->highlight.arr.count);
 }
 
-int main() {
-    size_t size = 0;
-    char *content = get_file_content("../main.c", &size);
-    if (content == NULL) {
-        fprintf(stderr, "Failed to read the file.\n");
-        return 1;
-    }
-    STRING_VIEW sv = sv_init(content, size);
-    TOKEN_ARR arr = lex(&sv);
-    print_tokens(&sv, arr);
-    free(content);
-    free(arr.tokens);
-    return 0;
+TOKEN editor_highlight_get_current_token(EDITOR *editor) {
+    return editor->highlight.arr.tokens[editor->highlight.current];
 }
+
+int editor_start_highlight(EDITOR *editor, size_t index) {
+    return (!editor_highlight_end(editor) && (index == editor_highlight_get_current_token(editor).first));
+}
+
+
+#endif

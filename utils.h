@@ -5,8 +5,14 @@
 #include <ncurses.h>
 
 #include "./init.h"
+#include "./consts.h"
+#include "./sv.h"
 
 #define ARR_SIZE(arr) sizeof(arr)/sizeof((arr)[0])
+#define CTRL(x) (x) & 31
+
+
+
 
 char *keywords[] = {
     "auto", "break", "case", "char", "const", "continue", "default", "do", "double",
@@ -15,7 +21,7 @@ char *keywords[] = {
     "static", "struct", "switch", "typedef", "union", "unsigned", "void",
     "volatile", "while", "_Alignas", "_Alignof", "_Atomic", "_Bool",
     "_Complex", "_Generic", "_Imaginary", "_Noreturn", "_Static_assert",
-    "_Thread_local"
+    "_Thread_local", "size_t", "NULL", "FILE", "uint8_t", "uint16_t"
 };
 
 char *modes[] = {
@@ -70,13 +76,27 @@ char seps[] = {
 
 void ncurses_init() {
     initscr();
-    raw();
     keypad(stdscr, TRUE);
     noecho();
+    raw();
+    start_color();
 }
 
 void ncurses_quit() {
     endwin();
+}
+
+POSITION get_window_size(WINDOW *wind) {
+    size_t height, width;
+    getmaxyx(stdscr, height, width);
+    return (POSITION) {
+        .row = height,
+        .col = width,
+    };
+}
+
+size_t min(size_t a, size_t b) {
+    return a < b ? a : b;
 }
 
 char *get_file_content(char *filename, size_t *content_size) {
@@ -174,17 +194,33 @@ int iscolon(int ch) {
     return 0;
 }
 
+int iskeyword(STRING_VIEW *sv, size_t first, size_t size) {
+    for (size_t i = 0; i < ARR_SIZE(keywords); i++) {
+        if (size == strlen(keywords[i]) && strncmp(sv->content + first, keywords[i], size) == 0) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
+
 void stringify(TOKEN_TYPE type) {
     printf("%s", token_types[type - 2]);
 }
 
-char *editor_stringify_state(EDITOR *editor) {
-    return states[editor->config.state];
-} 
-
-char *editor_stringify_mode(EDITOR *editor) {
-    return modes[editor->config.mode];
+char *stringify_mode(MODE mode) {
+    return modes[mode];
 }
+
+
+
+// char *editor_stringify_state(EDITOR *editor) {
+//     return states[editor->config.state];
+// } 
+
+// char *editor_stringify_mode(EDITOR *editor) {
+//     return modes[editor->config.mode];
+// }
 
 
 

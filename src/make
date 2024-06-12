@@ -1,1 +1,0 @@
-cc file.c -o file -lncurses -g

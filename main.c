@@ -1,55 +1,55 @@
 #include <stdio.h>
-#include <string.h>
-#include <ncurses.h>
 #include <stdlib.h>
+#include <ncurses.h>
+#include <string.h>
 
-#include "./src/types.h"
-#include "./src/djeditor.h"
+#include "./types.h"
+#include "./editor.h"
 
-// MAIN ENTRY POINT
-int main(int argc, char **argv) {
-    
-    EDITOR editor = editor_begin(&editor);
+void editor_clean(EDITOR *editor) {
+    free(editor->buffer.content);
+    free(editor->arr.rows);
+    free(editor->highlight.arr.tokens);
 
-    if (argc > 1) {
-        size_t user_input_size = strlen(argv[1]);
-        if (user_input_size > MAX_INPUT_SIZE)  { 
-            fprintf(stderr, "ERROR: INPUT FILE NAME CAN NOT EXCEED %d CHARACTERS\n", MAX_INPUT_SIZE);
-            editor_quit();
-            return EXIT_FAILURE;
-        } else { 
-            editor.config.FILE_NAME = (char *)malloc(sizeof(char) * (MAX_INPUT_SIZE + 1));
-            memcpy(editor.config.FILE_NAME, argv[1], sizeof(char) * user_input_size);
-        }
-    }        
-
-    if (atexit(editor_quit) != 0) {
-        fprintf(stderr, "FAILED TO SET EXIT FUNCTION\n");
-        return EXIT_FAILURE;
-    }
-
-    // SAVE THE PRIMARY SNAPSHOT OF THE EDITOR
-    editor_save_primary_snapshot(&editor);
-
-    editor_load_file(&editor, editor.config.FILE_NAME);
-
-    int ch;
-
-    do {
-        // RENDER
-        editor_render(&editor);
-
-        // READ USER INPUT
-        ch = getch();
-
-        // HANDLE USER INPUT
-        editor_handle_event(&editor, ch);
-
-    } while(editor.config.state != EXIT);
-
-    editor_quit();
-
-    return EXIT_SUCCESS;
+    for (int i = 0; i < WINDOWS_COUNT; i++) 
+        delwin(editor->windows[i].wind);
 }
 
+int main2(void) {
+    EDITOR editor = editor_init();
+    editor_load_file(&editor);
 
+    editor_set_rows(&editor);
+    POSITION pos = editor_get_curs_position(&editor);
+
+    editor_lex_row(&editor, 0, editor.buffer.count);
+
+    for (size_t i = 0; i < editor.highlight.arr.count; i++) {
+        STRING_VIEW sv = sv_init(editor.buffer.content + editor.highlight.arr.tokens[i].first, editor.highlight.arr.tokens[i].size);
+        print_sv(&sv, 0, editor.highlight.arr.tokens[i].size);
+        printf(" -> ");
+        stringify(editor.highlight.arr.tokens[i].type);
+        printf(" -> ");
+        printf("%zu:%zu", editor.highlight.arr.tokens[i].first, editor.highlight.arr.tokens[i].size);
+        printf("\n");
+    }
+}
+
+int main(void) {
+    ncurses_init();
+
+    EDITOR editor = editor_init();
+
+    editor_init_theme(&editor);
+
+    editor_load_file(&editor);
+
+    while (editor.state != EXITING) {
+        int ch = getch();
+        editor_event_handler(&editor, ch);
+        editor_render(&editor);
+    }
+
+    editor_clean(&editor);
+    ncurses_quit();
+}
