@@ -32,7 +32,7 @@ void editor_move_left(Editor *e, size_t w) {
     } else {
         e->render_col = 0;
     }
-    
+
     e->cursor_col = e->b.lines[e->cursor_row].count - e->render_col;
 }
 
@@ -83,7 +83,7 @@ void editor_insert_text_after_cursor(Editor *e, char *text, size_t text_size) {
     // save the initial values of the x 
     size_t init_x = x;
 
-    buffer_insert_text_after_cursor(&e->b, text, text_size, e->cursor_row, &x);
+    buffer_insert_text_after_cursor(&e->b, text, text_size, e->render_row + e->cursor_row, &x);
 
     e->cursor_col += x - init_x;
 }
