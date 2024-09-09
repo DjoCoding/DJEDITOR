@@ -1,2 +1,2 @@
-main: *.h
-	cc main.c -o main -Wall -Wextra -g -lncurses
+main: *.c *.h
+	cc *.c -o main -lncurses -ggdb2
