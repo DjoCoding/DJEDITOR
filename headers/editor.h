@@ -10,8 +10,13 @@ typedef enum {
 
 typedef struct {
     Buffer b;
+    
     size_t cursor_row;
     size_t cursor_col;
+    
+    int render_row;
+    int render_col;
+
     State state;
 } Editor;
 

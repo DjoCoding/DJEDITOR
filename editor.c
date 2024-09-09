@@ -23,8 +23,12 @@ void editor_move_left(Editor *e) {
 void editor_move_right(Editor *e) {
     Line *line = &e->b.lines[e->cursor_row];
 
-    if (e->cursor_col == line->count) {
-        if (e->cursor_row + 1 == e->b.count) { return; }
+    if (e->cursor_col >= line->count) {
+        if (e->cursor_row + 1 >= e->b.count) { 
+            e->cursor_row = e->b.count - 1;
+            return; 
+        }
+        
         ++e->cursor_row;
         e->cursor_col = 0;
         return;
@@ -55,7 +59,16 @@ void editor_move_down(Editor *e) {
 }
 
 void editor_insert_text_after_cursor(Editor *e, char *text, size_t text_size) {
-    buffer_insert_text_after_cursor(&e->b, text, text_size, e->cursor_row, &e->cursor_col);
+    if ((text_size != 1) || (*text != '\t')) {
+        return buffer_insert_text_after_cursor(&e->b, text, text_size, e->cursor_row, &e->cursor_col);
+    }
+
+    *text = ' ';
+
+    // a tab is for spaces
+    for (int i = 0; i < 4; ++i) {
+        buffer_insert_text_after_cursor(&e->b, text, text_size, e->cursor_row, &e->cursor_col);
+    }
 }
 
 void editor_insert_line_after_cursor(Editor *e) {

@@ -17,9 +17,15 @@ void ncurses_quit(void) {
     endwin();
 }
 
-void line_render(Line *line, size_t row) {
-    for(size_t i = 0; i < line->count; ++i) {
-        mvaddch((int) row, (int) i, line->content[i]);
+// col for the start column of the rendering (for scrolling)
+// w for the window width
+void line_render(Line *line, size_t row, size_t col, int w) {
+    size_t i = col;
+
+    while(true) {
+        if ((i >= col + w) || (i >= line->count)) { return; }
+        mvaddch((int) row, (int) (i - col), line->content[i]);
+        ++i;
     }
 }
 
@@ -47,12 +53,47 @@ void editor_update(Editor *e) {
     }
 }
 
+void editor_render_line(Editor *e, size_t which_line, size_t row, int w) {
+    Line *line = &e->b.lines[which_line];
+    line_render(line, row, e->render_col, w);
+}
+
 void editor_render(Editor *e) {
     clear();
 
-    for (size_t i = 0; i < e->b.count; ++i) {
-        Line *line = &e->b.lines[i];
-        line_render(line, i);
+    int w = 0;
+    int h = 0;
+
+    getmaxyx(stdscr, h, w);
+
+    if (e->cursor_col + 1 >= w) {
+        e->cursor_col -= 1;
+        e->render_col += 1;    
+    }
+
+    if (e->cursor_col < 3 && e->render_col > 0) {
+        e->cursor_col += 1;
+        e->render_col -= 1;
+    }
+
+    if (e->cursor_row + 1 >= h) {
+        e->cursor_row -= 1;
+        e->render_row += 1;
+    }
+
+    if (e->cursor_row < 3 && e->render_row > 0) {
+        e->cursor_row += 1;
+        e->render_row -= 1;
+    }
+
+
+    size_t i = e->render_row;
+    bool render = true;
+
+    while(true) {
+        if ((i >= e->render_row + h) || (i >= e->b.count)) { break; }
+        editor_render_line(e, i, i - e->render_row, w);
+        ++i;
     }
 
     move(e->cursor_row, e->cursor_col);
@@ -130,7 +171,7 @@ int main(void) {
     e = editor_init();
     e.state = RUNNING;
 
-    editor_load_file(&e, "./file.c");
+    editor_load_file(&e, "./test");
     
     ncurses_init();
 
@@ -142,7 +183,7 @@ int main(void) {
         editor_render(&e);
     }
 
-    editor_store_in_file(&e, "./file.c");
+    editor_store_in_file(&e, "./f");
 
     ncurses_quit();
 }

@@ -20,14 +20,33 @@ void line_reset(Line *line) {
     line->count = 0;
 }
 
+void line_insert_tab(Line *line, size_t *cursor) {
+    if (line->count + TAB_SIZE >= line->size) { line_resize(line); }
+
+    char space = ' ';
+    
+    for (int i = 0; i < TAB_SIZE; ++i) {
+        line_insert_char(line, space, cursor);
+    }
+}
+
+void line_insert_char(Line *line, char c, size_t *cursor) {
+    if (c == '\t') { return line_insert_tab(line, cursor); }
+    
+    if (line->count >= line->size) { line_resize(line); }
+
+    line->content[*cursor] = c;
+    
+    *cursor += 1; 
+    line->count += 1;
+}
+
 void line_insert_text_after_cursor(Line *line, char *text, size_t text_size, size_t *cursor) {
-    while(line->count + text_size >= line->size) { line_resize(line); }
-
     memmove(line->content + *cursor + text_size, line->content + *cursor, line->count - *cursor);
-    memcpy(line->content + *cursor, text, text_size);
-
-    *cursor += text_size;
-    line->count += text_size;
+    
+    for (size_t i = 0; i < text_size; ++i) {
+        line_insert_char(line, text[i], cursor);
+    }
 }
 
 void line_remove_text_before_cursor(Line *line, size_t text_size, size_t *cursor) {
