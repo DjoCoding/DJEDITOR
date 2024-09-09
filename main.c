@@ -1,5 +1,5 @@
 #define ENV_IMPL
-#include "editor.h"
+#include "headers/editor.h"
 
 #include <ncurses.h>
 
@@ -142,7 +142,7 @@ int main(void) {
         editor_render(&e);
     }
 
-    editor_store_in_file(&e, "./a.out");
+    editor_store_in_file(&e, "./file.c");
 
     ncurses_quit();
 }

@@ -1,4 +1,4 @@
-#include "line.h"
+#include "headers/line.h"
 
 Line line_init(void) {
     Line line = {0};

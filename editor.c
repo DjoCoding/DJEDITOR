@@ -1,4 +1,4 @@
-#include "editor.h"
+#include "headers/editor.h"
 
 Editor editor_init(void) {
     Editor e = {0};
