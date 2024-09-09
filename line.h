@@ -15,6 +15,7 @@ Line line_init(void);
 void line_reset(Line *line);
 void line_resize(Line *line);
 void line_insert_text_after_cursor(Line *line, char *text, size_t text_size, size_t *cursor);
+void line_remove_text_before_cursor(Line *line, size_t text_size, size_t *cursor);
 void line_dump(FILE *f, Line *line);
 void line_clean(Line *line);
 

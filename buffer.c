@@ -41,6 +41,41 @@ void buffer_insert_line_after_cursor(Buffer *b, size_t *row, size_t *col) {
     b->count += 1;
 }
 
+void buffer_remove_text_before_cursor(Buffer *b, size_t text_size, size_t *row, size_t *col) {
+    if (text_size == 0) { return; }
+
+    Line *line = &b->lines[*row];
+
+    if (*col >= text_size) {
+        return line_remove_text_before_cursor(line, text_size, col);
+    }
+
+    if (*row == 0) { return; }
+
+    memmove(line->content, &line->content[*col], *col);
+    line->count -= *col;
+    text_size -= *col;
+
+    Line *prev = &b->lines[*row - 1];
+    while (prev->count + line->count >= prev->size) { line_resize(prev); }
+    memcpy(&prev->content[prev->count], line->content, line->count);
+    prev->count += line->count;
+    text_size -= 1;   // for the new line char
+
+    line_clean(line);
+    
+    for (size_t i = *row; i < b->count - 1; ++i) {
+        b->lines[i] = b->lines[i + 1];
+    }
+
+    --b->count;
+
+    *row -= 1;
+    *col = prev->count;
+
+    return buffer_remove_text_before_cursor(b, text_size, row, col);
+}
+
 void buffer_init_line(Buffer *b, size_t row) {
     if (b->count >= b->size) { buffer_resize(b); }
     b->lines[row] = line_init();    

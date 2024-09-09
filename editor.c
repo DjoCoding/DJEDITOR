@@ -62,6 +62,10 @@ void editor_insert_line_after_cursor(Editor *e) {
     buffer_insert_line_after_cursor(&e->b, &e->cursor_row, &e->cursor_col);
 }
 
+void editor_remove_text_before_cursor(Editor *e, size_t text_size) {
+    buffer_remove_text_before_cursor(&e->b, text_size, &e->cursor_row, &e->cursor_col);
+}
+
 void editor_dump(FILE *f, Editor *e) {
     buffer_dump(f, &e->b);
 }

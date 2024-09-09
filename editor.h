@@ -23,6 +23,7 @@ void editor_move_up(Editor *e);
 void editor_move_down(Editor *e);
 void editor_insert_text_after_cursor(Editor *e, char *text, size_t text_size);
 void editor_insert_line_after_cursor(Editor *e);
+void editor_remove_text_before_cursor(Editor *e, size_t text_size);
 void editor_dump(FILE *f, Editor *e);
 void editor_clean(Editor *e);
 

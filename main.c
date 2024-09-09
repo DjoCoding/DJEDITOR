@@ -37,6 +37,8 @@ void editor_update(Editor *e) {
             return editor_move_up(e);
         case KEY_DOWN:
             return editor_move_down(e);
+        case KEY_BACKSPACE:
+            return editor_remove_text_before_cursor(e, sizeof(char));
         case '\n':
             editor_insert_line_after_cursor(e);
             return;

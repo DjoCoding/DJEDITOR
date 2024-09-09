@@ -6,7 +6,9 @@
 #include <string.h>
 #include <assert.h>
 #include <errno.h>
+#include <stdbool.h>
 
+#define todo(...)            { fprintf(stdout, "TODO: "); fprintf(stdout, __VA_ARGS__); exit(EXIT_SUCCESS); }
 #define DJ_ERROR(...)        { fprintf(stderr, "ERROR: "); fprintf(stderr, __VA_ARGS__); exit(EXIT_FAILURE); }
 #define DJ_ASSERT(cond, ...) { assert((cond) && __VA_ARGS__); }
 #define DJ_ALLOC             alloc

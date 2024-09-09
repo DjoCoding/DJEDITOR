@@ -30,6 +30,13 @@ void line_insert_text_after_cursor(Line *line, char *text, size_t text_size, siz
     line->count += text_size;
 }
 
+void line_remove_text_before_cursor(Line *line, size_t text_size, size_t *cursor) {
+    DJ_ASSERT(*cursor >= text_size, "`line_remove_text_before_cursor` failed, found an unreachable situation");
+    memmove(&line->content[*cursor] - text_size, &line->content[*cursor], sizeof(char) * (line->count - *cursor));
+    line->count -= text_size;
+    *cursor -= text_size;
+}
+
 void line_dump(FILE *f, Line *line) {
     fwrite(line->content, sizeof(char), line->count, f);
 }
