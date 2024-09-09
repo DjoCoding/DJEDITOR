@@ -20,20 +20,14 @@ void line_reset(Line *line) {
     line->count = 0;
 }
 
-void line_insert_tab(Line *line, size_t *cursor) {
-    if (line->count + TAB_SIZE >= line->size) { line_resize(line); }
-
-    char space = ' ';
-    
+void line_insert_tab(Line *line, size_t *cursor) {    
     for (int i = 0; i < TAB_SIZE; ++i) {
-        line_insert_char(line, space, cursor);
+        line_insert_char(line, ' ', cursor);
     }
 }
 
 void line_insert_char(Line *line, char c, size_t *cursor) {
     if (c == '\t') { return line_insert_tab(line, cursor); }
-    
-    if (line->count >= line->size) { line_resize(line); }
 
     line->content[*cursor] = c;
     
@@ -42,7 +36,14 @@ void line_insert_char(Line *line, char c, size_t *cursor) {
 }
 
 void line_insert_text_after_cursor(Line *line, char *text, size_t text_size, size_t *cursor) {
-    memmove(line->content + *cursor + text_size, line->content + *cursor, line->count - *cursor);
+    size_t text_size_with_tabs = 0;
+    for (size_t i = 0; i < text_size; ++i) {
+        text_size_with_tabs += (text[i] == '\t') ? TAB_SIZE: 1;
+    }
+
+    while (line->count + text_size_with_tabs >= line->size) { line_resize(line); }
+
+    memmove(line->content + *cursor + text_size_with_tabs, line->content + *cursor, line->count - *cursor);
     
     for (size_t i = 0; i < text_size; ++i) {
         line_insert_char(line, text[i], cursor);

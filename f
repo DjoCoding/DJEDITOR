@@ -1,50 +1,5 @@
-jdfnfsf
+#include <stdio.h>
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-flsnfsfnnlsnd fndns lfln #include <stdio.h>
+int main(void) {
+   return 0;
+}
