@@ -31,12 +31,14 @@ void line_render(Line *line, size_t row, size_t col, int w) {
 
 void editor_update(Editor *e) {
     int c = getch();
+
     switch(c) {
         case 'q':
             e->state = STOPED;
             return;
         case KEY_LEFT:  
-            return editor_move_left(e);
+            int w = getmaxx(stdscr);
+            return editor_move_left(e, w);
         case KEY_RIGHT:
             return editor_move_right(e);
         case KEY_UP:

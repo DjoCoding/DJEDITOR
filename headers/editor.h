@@ -22,7 +22,7 @@ typedef struct {
 
 Editor editor_init(void);
 void editor_push_line(Editor *e);
-void editor_move_left(Editor *e);
+void editor_move_left(Editor *e, size_t w);
 void editor_move_right(Editor *e);
 void editor_move_up(Editor *e);
 void editor_move_down(Editor *e);
