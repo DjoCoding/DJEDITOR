@@ -3,6 +3,7 @@
 Editor editor_init(void) {
     Editor e = {0};
     e.b = buffer_init();
+    editor_push_line(&e);
     return e;
 }
 

@@ -12,7 +12,7 @@ void line_resize(Line *line) {
     if (line->size == 0) { line->size = LINE_INIT_SIZE; }
     else { line->size *= 2; }
 
-    line->content = DJ_REALLOC(line->content, sizeof(Line), line->size); 
+    line->content = DJ_REALLOC(line->content, sizeof(char), line->size); 
 }
 
 void line_reset(Line *line) {

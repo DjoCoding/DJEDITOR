@@ -46,41 +46,101 @@ void editor_update(Editor *e) {
 }
 
 void editor_render(Editor *e) {
+    clear();
+
     for (size_t i = 0; i < e->b.count; ++i) {
         Line *line = &e->b.lines[i];
         line_render(line, i);
     }
 
     move(e->cursor_row, e->cursor_col);
+
+    refresh();
 }
 
-int main2(void) {
-    e = editor_init();
-    editor_push_line(&e);
-    editor_insert_text_after_cursor(&e, "djaoued", strlen("djaoued"));
-    e.cursor_col = 2;
-    editor_insert_line_after_cursor(&e);
-    e.cursor_row -= 1;
-    e.cursor_col = 1;
-    editor_insert_line_after_cursor(&e);
-    editor_dump(stdout, &e);
-    editor_clean(&e);
+
+size_t fsize(FILE *f) {
+    fseek(f, 0, SEEK_END);
+    size_t size = ftell(f);
+    fseek(f, 0, SEEK_SET);
+    return size;
+}
+
+char *fcontent(char *filepath) {
+    FILE *f = fopen(filepath, "r");
+    if (!f) {
+        DJ_ERROR("could not open the file %s: %s\n", filepath, strerror(errno));
+    }
+
+    size_t filesize = fsize(f);
+    char *content = DJ_ALLOC((filesize + 1) * sizeof(char));
+    size_t size = fread(content, sizeof(char), filesize, f);
+
+    if (size != filesize) { 
+        DJ_ERROR("could not read the whole file %s", filepath);
+    }
+
+    content[filesize] = 0;
+    fclose(f);
+
+    return content;
+}
+
+void editor_load_file(Editor *e, char *filepath) {
+    char *content = fcontent(filepath);
+    size_t size = strlen(content);
+    
+    char c = 0;
+    char *begin = content;
+    char *current = begin;
+
+    while ((c = *current) != 0) {
+        ++current;
+        if (c == '\n') {
+            editor_insert_text_after_cursor(e, begin, current - begin - 1);
+            editor_insert_line_after_cursor(e);
+            begin = current;
+        }
+    }
+
+    editor_insert_text_after_cursor(e, begin, current - begin);
+    
+    e->cursor_col = 0;
+    e->cursor_row = 0;
+}
+
+void editor_store_in_file(Editor *e, char *filepath) {
+    FILE *f = fopen(filepath, "w");
+    if (!f) {
+        DJ_ERROR("could not open the file %s: %s\n", filepath, strerror(errno));
+    }
+
+    for (size_t i = 0; i < e->b.count; ++i) {
+        Line *line = &e->b.lines[i];
+        fwrite(line->content, sizeof(char), line->count, f);
+        if (i != e->b.count - 1) { fputc('\n', f); }
+    }
+
+    fclose(f);
 }
 
 int main(void) {
     e = editor_init();
     e.state = RUNNING;
-    editor_push_line(&e);
 
+    editor_load_file(&e, "./file.c");
+    
     ncurses_init();
 
+    // initial render 
+    editor_render(&e);
+    
     while (e.state != STOPED) {
         editor_update(&e);
-
-        clear();
         editor_render(&e);
-        refresh();
     }
+
+    editor_store_in_file(&e, "./a.out");
 
     ncurses_quit();
 }
