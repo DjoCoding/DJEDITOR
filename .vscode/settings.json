@@ -11,6 +11,7 @@
         "string_view": "c",
         "initializer_list": "c",
         "utility": "c",
-        "buffer.h": "c"
+        "buffer.h": "c",
+        "line.h": "c"
     }
 }

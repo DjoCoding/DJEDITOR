@@ -2,6 +2,7 @@
 #define LINE_H
 
 #include "env.h"
+#include "screen.h"
 
 #define TAB_SIZE 3
 
@@ -21,6 +22,7 @@ void line_insert_tab(Line *line, size_t *cursor);
 void line_insert_text_after_cursor(Line *line, char *text, size_t text_size, size_t *cursor);
 void line_remove_text_before_cursor(Line *line, size_t text_size, size_t *cursor);
 void line_dump(FILE *f, Line *line);
+void line_render(Line *line, size_t row, size_t cursor, Screen *s);
 void line_clean(Line *line);
 
 

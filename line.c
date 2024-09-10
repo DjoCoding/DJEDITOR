@@ -61,6 +61,17 @@ void line_dump(FILE *f, Line *line) {
     fwrite(line->content, sizeof(char), line->count, f);
 }
 
+void line_render(Line *line, size_t row, size_t cursor, Screen *s) {
+    size_t i = cursor;
+
+    while(true) {
+        if ((i >= line->count) || (i - cursor >= s->config.w)) { break; }
+        wmove(s->window, (int)row, (int)(i - cursor));
+        waddch(s->window, line->content[i]);
+        ++i;
+    }
+}
+
 void line_clean(Line *line) {
     free(line->content);
 }

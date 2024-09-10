@@ -2,8 +2,18 @@
 
 Editor editor_init(void) {
     Editor e = {0};
+    
     e.b = buffer_init();
     editor_push_line(&e);
+
+
+    int w = 0, h = 0;
+    getmaxyx(stdscr, h, w);
+
+    // main screen configuration, full width, full height - 1 (for the command screen), starts from the top left corner
+    Config main_config = config_init(w, h - 1, 0, 0);
+    e.screens[MAIN_SCREEN] = screen_init(main_config);
+
     return e;
 }
 
@@ -124,6 +134,81 @@ void editor_dump(FILE *f, Editor *e) {
     buffer_dump(f, &e->b);
 }
 
+
+void editor_load_file(Editor *e, char *filepath) {
+    char *content = fcontent(filepath);
+    size_t size = strlen(content);
+    
+    char c = 0;
+    char *begin = content;
+    char *current = begin;
+
+    while ((c = *current) != 0) {
+        ++current;
+        if (c == '\n') {
+            editor_insert_text_after_cursor(e, begin, current - begin - 1);
+            editor_insert_line_after_cursor(e);
+            begin = current;
+        }
+    }
+
+    editor_insert_text_after_cursor(e, begin, current - begin);
+    
+    e->cursor_col = 0;
+    e->cursor_row = 0;
+}
+
+void editor_store_in_file(Editor *e, char *filepath) {
+    FILE *f = fopen(filepath, "w");
+    if (!f) {
+        DJ_ERROR("could not open the file %s: %s\n", filepath, strerror(errno));
+    }
+
+    for (size_t i = 0; i < e->b.count; ++i) {
+        Line *line = &e->b.lines[i];
+        fwrite(line->content, sizeof(char), line->count, f);
+        if (i != e->b.count - 1) { fputc('\n', f); }
+    }
+
+    fclose(f);
+}
+
+void editor_render(Editor *e) {
+    int w = e->screens[MAIN_SCREEN].config.w;
+    int h = e->screens[MAIN_SCREEN].config.h;
+
+    if (e->cursor_col + 1 >= w) {
+        e->cursor_col -= 1;
+        e->render_col += 1;    
+    }
+
+    if (e->cursor_col < 3 && e->render_col > 0) {
+        e->cursor_col += 1;
+        e->render_col -= 1;
+    }
+
+    if (e->cursor_row + 1 >= h) {
+        e->cursor_row -= 1;
+        e->render_row += 1;
+    }
+
+    if (e->cursor_row < 3 && e->render_row > 0) {
+        e->cursor_row += 1;
+        e->render_row -= 1;
+    }
+
+    WINDOW *wind = e->screens[MAIN_SCREEN].window;
+
+    wclear(wind);
+    buffer_render(&e->b, e->render_row, e->render_col, &e->screens[MAIN_SCREEN]);
+    wmove(wind, e->cursor_row, e->cursor_col);
+    wrefresh(wind);
+}
+
+
 void editor_clean(Editor *e) {
     buffer_clean(&e->b);
+    for (int i = 0; i < SCREENS_COUNT; ++i) {
+        delwin(e->screens[i].window);
+    }
 }

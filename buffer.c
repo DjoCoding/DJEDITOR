@@ -90,6 +90,16 @@ void buffer_clean(Buffer *b) {
     free(b->lines);
 }  
 
+void buffer_render(Buffer *b, size_t fline, size_t fchar, Screen *s) {
+    size_t i = fline;
+    while(true) {
+        if ((i - fline >= s->config.h) || (i >= b->count)) { break; }
+        Line *line = &b->lines[i];
+        line_render(line, i - fline, fchar, s);
+        ++i;
+    }
+}
+
 void buffer_dump(FILE *f, Buffer *b) {
     for(size_t i = 0; i < b->count; ++i) {
         line_dump(f, &b->lines[i]);

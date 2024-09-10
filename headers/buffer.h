@@ -18,6 +18,7 @@ void buffer_insert_text_after_cursor(Buffer *b, char *text, size_t text_size, si
 void buffer_insert_line_after_cursor(Buffer *b, size_t *row, size_t *col);
 void buffer_remove_text_before_cursor(Buffer *b, size_t text_size, size_t *row, size_t *col);
 void buffer_dump(FILE *f, Buffer *b);
+void buffer_render(Buffer *b, size_t fline, size_t fchar, Screen *s);
 void buffer_clean(Buffer *b);
 
 
