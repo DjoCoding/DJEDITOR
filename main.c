@@ -1,5 +1,7 @@
 #define ENV_IMPL
 #define UTILS_IMPL
+#define SV_IMPL
+
 #include "headers/editor.h"
 
 #define ESC 27
@@ -23,7 +25,10 @@ void editor_update(Editor *e) {
 
     if (e->mode == NORMAL) {
         switch(c) {
-            case ':': e->mode = COMMAND; editor_insert_command_text(e, (char *) &c, sizeof(char)); return;
+            case ':': 
+                e->mode = COMMAND;
+                editor_remove_command(e);
+                return editor_insert_command_text(e, (char *) &c, sizeof(char));
             case 'i': e->mode = INSERT; return;
             case 'l': return editor_move_down(e);
             case 'm': return editor_move_right(e);
@@ -31,16 +36,20 @@ void editor_update(Editor *e) {
             case 'k': 
                 int w = e->screens[MAIN_SCREEN].config.w;
                 return editor_move_left(e, w);
-            case 'q':
-                e->state = STOPED;
-                return;
             default: 
                 return;
         }
     }
 
     if (e->mode == COMMAND) {
-        if (c == '\n') { editor_remove_command(e); e->cmd_cursor = 0; e->mode = NORMAL; return; }
+        if (c == '\n') { 
+            editor_exec_command(e);
+            e->mode = NORMAL;
+            return;
+        }
+        
+        if (c == ESC) { editor_remove_command(e); e->mode = NORMAL; return; }
+        
         return editor_insert_command_text(e, (char *) &c, sizeof(char));
     }
 
@@ -81,8 +90,6 @@ int main(void) {
         editor_update(&e);
         editor_render(&e);
     }
-
-    editor_store_in_file(&e, "./f");
     
     editor_clean(&e);
 

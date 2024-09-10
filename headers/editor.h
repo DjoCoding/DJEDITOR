@@ -4,6 +4,7 @@
 #include "buffer.h"
 #include "utils.h"
 #include "screen.h"
+#include "../tools/sv.h"
 
 typedef enum {
     STOPED = 0,
@@ -50,6 +51,7 @@ void editor_remove_command(Editor *e);
 void editor_dump(FILE *f, Editor *e);
 void editor_load_file(Editor *e, char *filepath);
 void editor_store_in_file(Editor *e, char *filepath);
+void editor_exec_command(Editor *e);
 void editor_render(Editor *e);
 void editor_clean(Editor *e);
 

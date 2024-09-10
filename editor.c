@@ -236,11 +236,46 @@ void editor_remove_command_text(Editor *e, size_t text_size) {
 
 void editor_remove_command(Editor *e) {
     line_reset(&e->cmd);
+    e->cmd_cursor = 0;
+}
+
+void editor_exec_command(Editor *e) {
+    String_View s = sv(e->cmd.content, e->cmd.count);
+
+    // consuming ':'
+    s = sv_chop_left(s);
+
+    String_View cmd = sv_get_until(&s, ' ');
+    if (cmd.count == 0) { return; }
+
+    if (sv_cmp(cmd, SV("q"))) {
+        e->state = STOPED;
+        return editor_remove_command(e);
+    }
+
+    if (sv_cmp(cmd, SV("w"))) {
+        s = sv_trim_left(s);
+        if (s.count == 0) {
+            char *msg = "no file path provided";
+            editor_remove_command(e);
+            return editor_insert_command_text(e, msg, strlen(msg));
+        }
+
+        cmd = s;
+        char *filepath = DJ_ALLOC(cmd.count + 1);
+        filepath = cmd.content;
+        filepath[cmd.count] = 0;
+
+        editor_store_in_file(e, filepath);
+        return editor_remove_command(e);
+    }
 }
 
 void editor_clean(Editor *e) {
     buffer_clean(&e->b);
+    line_clean(&e->cmd);
+
     for (int i = 0; i < SCREENS_COUNT; ++i) {
         delwin(e->screens[i].window);
     }
-}
+}  
