@@ -14,6 +14,12 @@ Editor editor_init(void) {
     Config main_config = config_init(w, h - 1, 0, 0);
     e.screens[MAIN_SCREEN] = screen_init(main_config);
 
+    // command screen configuration 
+    Config cmd_config = config_init(w, 1, h - 1, 0);
+    e.screens[COMMAND_SCREEN] = screen_init(cmd_config);
+
+    e.cmd = line_init();
+
     return e;
 }
 
@@ -203,8 +209,34 @@ void editor_render(Editor *e) {
     buffer_render(&e->b, e->render_row, e->render_col, &e->screens[MAIN_SCREEN]);
     wmove(wind, e->cursor_row, e->cursor_col);
     wrefresh(wind);
+    
+    wind = e->screens[COMMAND_SCREEN].window;
+
+    wclear(wind);
+    line_render(&e->cmd, e->screens[COMMAND_SCREEN].config.row, 0, &e->screens[COMMAND_SCREEN]);
+    wmove(wind, e->screens[COMMAND_SCREEN].config.row, e->cmd_cursor);
+    wrefresh(wind);
+
+    if(e->mode == COMMAND) {
+        move(e->screens[COMMAND_SCREEN].config.row, e->cmd_cursor);
+    } else {
+        move(e->cursor_row, e->cursor_col);        
+    }
 }
 
+void editor_insert_command_text(Editor *e, char *text, size_t text_size) {
+    Line *cmd = &e->cmd;
+    line_insert_text_after_cursor(cmd, text, text_size, &e->cmd_cursor);
+}
+
+void editor_remove_command_text(Editor *e, size_t text_size) {
+    Line *cmd = &e->cmd;
+    line_remove_text_before_cursor(cmd, text_size, &e->cmd_cursor);
+}
+
+void editor_remove_command(Editor *e) {
+    line_reset(&e->cmd);
+}
 
 void editor_clean(Editor *e) {
     buffer_clean(&e->b);

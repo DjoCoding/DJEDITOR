@@ -2,6 +2,8 @@
 #define UTILS_IMPL
 #include "headers/editor.h"
 
+#define ESC 27
+
 Editor e = {0};
 
 // ncurses initialization and cleaning 
@@ -16,28 +18,35 @@ void ncurses_quit(void) {
     endwin();
 }
 
-// // col for the start column of the rendering (for scrolling)
-// // w for the window width
-// void line_render(Line *line, size_t row, size_t col, int w, WINDOW *w) {
-//     size_t i = col;
-
-//     while(true) {
-//         if ((i >= col + w) || (i >= line->count)) { return; }
-//         wmove(w, (int)row, (int)(i - col));
-//         waddch(w, line->content[i]);
-//         ++i;
-//     }
-// }
-
 void editor_update(Editor *e) {
     int c = getch();
 
+    if (e->mode == NORMAL) {
+        switch(c) {
+            case ':': e->mode = COMMAND; editor_insert_command_text(e, (char *) &c, sizeof(char)); return;
+            case 'i': e->mode = INSERT; return;
+            case 'l': return editor_move_down(e);
+            case 'm': return editor_move_right(e);
+            case 'o': return editor_move_up(e);
+            case 'k': 
+                int w = e->screens[MAIN_SCREEN].config.w;
+                return editor_move_left(e, w);
+            case 'q':
+                e->state = STOPED;
+                return;
+            default: 
+                return;
+        }
+    }
+
+    if (e->mode == COMMAND) {
+        if (c == '\n') { editor_remove_command(e); e->cmd_cursor = 0; e->mode = NORMAL; return; }
+        return editor_insert_command_text(e, (char *) &c, sizeof(char));
+    }
+
     switch(c) {
-        case 'q':
-            e->state = STOPED;
-            return;
         case KEY_LEFT:  
-            int w = getmaxx(stdscr);
+            int w = e->screens[MAIN_SCREEN].config.w;
             return editor_move_left(e, w);
         case KEY_RIGHT:
             return editor_move_right(e);
@@ -50,6 +59,8 @@ void editor_update(Editor *e) {
         case '\n':
             editor_insert_line_after_cursor(e);
             return;
+        case ESC:
+            e->mode = NORMAL; return;
         default:
             editor_insert_text_after_cursor(e, (char *) &c, sizeof(char));
     }
@@ -74,5 +85,6 @@ int main(void) {
     editor_store_in_file(&e, "./f");
     
     editor_clean(&e);
+
     ncurses_quit();
 }
