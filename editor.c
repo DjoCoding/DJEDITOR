@@ -18,7 +18,8 @@ Editor editor_init(void) {
     Config cmd_config = config_init(w, 1, h - 1, 0);
     e.screens[COMMAND_SCREEN] = screen_init(cmd_config);
 
-    e.cmd = line_init();
+    e.cmd_line = line_init();
+    e.hist = cmds_init();
 
     return e;
 }
@@ -35,7 +36,7 @@ void editor_push_line(Editor *e) {
     buffer_init_line(&e->b, e->cursor.y);
 }
 
-void editor_move_left_on_text_window(Editor *e) {
+void editor_move_left_text(Editor *e) {
     size_t w = e->screens[MAIN_SCREEN].config.w;
 
     if (e->camera.x + e->cursor.x > 0) { --e->cursor.x; return; }
@@ -54,22 +55,7 @@ void editor_move_left_on_text_window(Editor *e) {
     e->cursor.x = e->b.lines[e->cursor.y].count - e->camera.x;
 }
 
-void editor_move_left_on_command_window(Editor *e) {
-    if (e->cmd_cursor == 0) { return; }
-    --e->cmd_cursor;
-}
-
-void editor_move_left(Editor *e) {
-    size_t w = 0;
-
-    if (e->mode == COMMAND) {
-        return editor_move_left_on_command_window(e);
-    }
-
-    return editor_move_left_on_text_window(e);
-}
-
-void editor_move_right_on_text_window(Editor *e) {
+void editor_move_right_text(Editor *e) {
     Line *line = &e->b.lines[e->cursor.y];
 
     if (e->cursor.x + e->camera.x >= line->count) {
@@ -89,21 +75,7 @@ void editor_move_right_on_text_window(Editor *e) {
     ++e->cursor.x;
 }
 
-void editor_move_right_on_command_window(Editor *e) {
-    if (e->cmd_cursor < e->cmd.count) {
-        ++e->cmd_cursor;
-    }
-}
-
-void editor_move_right(Editor *e) {
-    if (e->mode == COMMAND) {
-        return editor_move_right_on_command_window(e);
-    }
-    
-    editor_move_right_on_text_window(e);
-}
-
-void editor_move_up(Editor *e) {
+void editor_move_up_text(Editor *e) {
     if (e->mode == COMMAND) { return; }
 
     if (e->cursor.y == 0) { e->cursor.x = 0; return; }
@@ -116,7 +88,7 @@ void editor_move_up(Editor *e) {
     }
 }
 
-void editor_move_down(Editor *e) {
+void editor_move_down_text(Editor *e) {
     if (e->mode == COMMAND) { return; }
 
     if (e->cursor.y + 1 == e->b.count) { e->cursor.x = e->b.lines[e->cursor.y].count; return; }
@@ -170,11 +142,6 @@ void editor_remove_text_before_cursor(Editor *e, size_t text_size) {
     e->cursor.y += y - init_y;
     e->cursor.x += x - init_x;
 }
-
-void editor_dump(FILE *f, Editor *e) {
-    buffer_dump(f, &e->b);
-}
-
 
 void editor_load_file(Editor *e, char *filepath) {
     char *content = fcontent(filepath);
@@ -275,7 +242,7 @@ void editor_render(Editor *e) {
     wind = e->screens[COMMAND_SCREEN].window;
 
     wclear(wind);
-    line_render(&e->cmd, e->screens[COMMAND_SCREEN].config.row, 0, &e->screens[COMMAND_SCREEN]);
+    line_render(&e->cmd_line, e->screens[COMMAND_SCREEN].config.row, 0, &e->screens[COMMAND_SCREEN]);
     wmove(wind, e->screens[COMMAND_SCREEN].config.row, e->cmd_cursor);
     wrefresh(wind);
 
@@ -286,28 +253,73 @@ void editor_render(Editor *e) {
     }
 }
 
-void editor_insert_command_text(Editor *e, char *text, size_t text_size) {
-    Line *cmd = &e->cmd;
-    line_insert_text_after_cursor(cmd, text, text_size, &e->cmd_cursor);
-}
-
-void editor_remove_command_text(Editor *e, size_t text_size) {
-    return line_remove_text_before_cursor(&e->cmd, text_size, &e->cmd_cursor);
-}
-
-void editor_remove_command(Editor *e) {
-    e->cmd.count = 0;
-    e->cmd_cursor = 0;
-}
-
 int editor_find_text(Editor *e, char *text, size_t text_size, uVec2 *pos) {
     uVec2 from = uvec2(editor_get_current_char(e), editor_get_current_line(e));
     return buffer_find_text(&e->b, text, text_size, from, pos);
 }
 
+void editor_replace_text(Editor *e, char *text, size_t text_size, size_t _size, uVec2 pos) {
+    buffer_replace_text(&e->b, text, text_size, _size, pos);
+}
+
+
+void editor_insert_command_text(Editor *e, char *text, size_t text_size) {
+    Line *cmd = &e->cmd_line;
+    line_insert_text_after_cursor(cmd, text, text_size, &e->cmd_cursor);
+}
+
+void editor_remove_command_text(Editor *e, size_t text_size) {
+    return line_remove_text_before_cursor(&e->cmd_line, text_size, &e->cmd_cursor);
+}
+
+void editor_remove_command(Editor *e) {
+    e->cmd_line.count = 0;
+    e->cmd_cursor = 0;
+}
+
+void editor_move_left_command(Editor *e) {
+    if (e->cmd_cursor == 0) { return; }
+    --e->cmd_cursor;
+}
+
+void editor_move_right_command(Editor *e) {
+    if (e->cmd_cursor < e->cmd_line.count) {
+        ++e->cmd_cursor;
+    }
+}
+
+void editor_move_up_command(Editor *e) {
+    if (e->hist.count == 0) { return editor_remove_command(e); }
+    if (e->hist.current > 0) --e->hist.current;
+    Command cmd = cmds_get_cmd(&e->hist);
+    return cmd_to_buffer_line(cmd, &e->cmd_line);
+}
+
+void editor_move_down_command(Editor *e) {
+    if (e->hist.current < e->hist.count) { ++e->hist.current; }
+
+    if (e->hist.current < e->hist.count) {
+        Command cmd = cmds_get_cmd(&e->hist);
+        return cmd_to_buffer_line(cmd, &e->cmd_line);
+    }
+    
+    editor_remove_command(e);
+}
+
+void editor_push_command_to_history(Editor *e) {
+    Line cmd_line = e->cmd_line;
+    cmds_insert_cmd(&e->hist, cmd_line.content, cmd_line.count);
+}
+
+
+void editor_exec_last_command(Editor *e) {
+    cmd_to_buffer_line(cmds_get_cmd(&e->hist), &e->cmd_line);
+    editor_exec_command(e);
+}
+
 
 void editor_exec_command(Editor *e) {
-    String_View s = sv(e->cmd.content, e->cmd.count);
+    String_View s = sv(e->cmd_line.content, e->cmd_line.count);
 
     // consuming ':'
     s = sv_trim_right(sv_chop_left(s));
@@ -319,11 +331,13 @@ void editor_exec_command(Editor *e) {
     
     if (sv_cmp(arg, SV("w"))) {
         String_View filepath_sv = sv_get_arg(&s);
+        
         if (sv_isnull(filepath_sv)) {
             char *msg = "no file path provided";
             editor_remove_command(e);
             return editor_insert_command_text(e, msg, strlen(msg));
         }
+
         char *filepath = DJ_ALLOC(filepath_sv.count + 1);
         sv_to_cstr(filepath_sv, filepath);
         editor_store_in_file(e, filepath);
@@ -334,11 +348,13 @@ void editor_exec_command(Editor *e) {
         String_View text = sv_get_arg(&s);
         uVec2 pos = {0};
         int isfound = editor_find_text(e, text.content, text.count, &pos);
+        
         if (!isfound) {
             char *msg = "not found";
             editor_remove_command(e);
             return editor_insert_command_text(e, msg, strlen(msg));
         }
+        
         editor_move_camera_and_cursor_to_char(e, pos);
         return editor_remove_command(e);
     }
@@ -352,7 +368,7 @@ void editor_exec_command(Editor *e) {
         
         String_View new = sv_get_arg(&s);
         uVec2 begin = uvec2_subx(pos, org.count);
-        buffer_replace_text(&e->b, new.content, new.count, org.count, begin);
+        editor_replace_text(e, new.content, new.count, org.count, begin);
         
         editor_move_camera_and_cursor_to_char(e, uvec2_addx(begin, new.count));
         return editor_remove_command(e);
@@ -365,9 +381,13 @@ void editor_exec_command(Editor *e) {
 
 void editor_clean(Editor *e) {
     buffer_clean(&e->b);
-    line_clean(&e->cmd);
+    line_clean(&e->cmd_line);
 
     for (int i = 0; i < SCREENS_COUNT; ++i) {
         delwin(e->screens[i].window);
     }
 }  
+
+void editor_dump(FILE *f, Editor *e) {
+    buffer_dump(f, &e->b);
+}

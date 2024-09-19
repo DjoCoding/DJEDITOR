@@ -25,18 +25,6 @@ void ncurses_quit(void) {
 void editor_update(Editor *e) {
     int c = getch();
 
-    switch(c) {
-        case KEY_LEFT:  
-            return editor_move_left(e);
-        case KEY_RIGHT:
-            return editor_move_right(e);
-        case KEY_UP:
-            return editor_move_up(e);
-        case KEY_DOWN:
-            return editor_move_down(e);
-    }
-
-
     if (e->mode == NORMAL) {
         switch(c) {
             case ':': 
@@ -44,26 +32,33 @@ void editor_update(Editor *e) {
                 editor_remove_command(e);
                 return editor_insert_command_text(e, (char *) &c, sizeof(char));
             case 'i': e->mode = INSERT; return;
-            case 'l': return editor_move_down(e);
-            case 'm': return editor_move_right(e);
-            case 'o': return editor_move_up(e);
-            case 'k': 
-                return editor_move_left(e);
-            default: 
-                return;
+            case 'l': return editor_move_down_text(e);
+            case 'm': return editor_move_right_text(e);
+            case 'o': return editor_move_up_text(e);
+            case 'k': return editor_move_left_text(e);
+            default:  return;
         }
     }
 
     if (e->mode == COMMAND) {
         switch(c) {
             case '\n':
+                editor_push_command_to_history(e);
                 editor_exec_command(e);
                 e->mode = NORMAL;
                 return;
             case ESC:
                 editor_remove_command(e);
                 e->mode = NORMAL;
-                return;
+                return;    
+            case KEY_LEFT:  
+                return editor_move_left_command(e);
+            case KEY_RIGHT:
+                return editor_move_right_command(e);
+            case KEY_UP:
+                return editor_move_up_command(e);
+            case KEY_DOWN:
+                return editor_move_down_command(e);
             case KEY_BACKSPACE:
                 return editor_remove_command_text(e, sizeof(char));
             default:
@@ -72,15 +67,22 @@ void editor_update(Editor *e) {
     }
 
     switch(c) {
+        case KEY_LEFT:  
+            return editor_move_left_text(e);
+        case KEY_RIGHT:
+            return editor_move_right_text(e);
+        case KEY_UP:
+            return editor_move_up_text(e);
+        case KEY_DOWN:
+            return editor_move_down_text(e);
         case KEY_BACKSPACE:
             return editor_remove_text_before_cursor(e, sizeof(char));
         case '\n':
-            editor_insert_line_after_cursor(e);
-            return;
+            return editor_insert_line_after_cursor(e);
         case ESC:
             e->mode = NORMAL; return;
         default:
-            editor_insert_text_after_cursor(e, (char *) &c, sizeof(char));
+            return editor_insert_text_after_cursor(e, (char *) &c, sizeof(char));
     }
 }
 
