@@ -72,6 +72,24 @@ void line_render(Line *line, size_t row, size_t cursor, Screen *s) {
     }
 }
 
+int line_find_text(Line *line, char *text, size_t text_size, size_t from, size_t *pos) {
+    if (text_size > line->count - from) { return 0; }
+    size_t i = from;
+
+    while (i < line->count) {
+        size_t j = 0;
+        while (j < text_size) {
+            if (text[j] != line->content[i + j]) { break; }
+            j += 1;
+        }
+
+        if (j == text_size) {  *pos = i + j; return 1; }
+        i += 1;
+    }
+
+    return 0;
+}
+
 void line_clean(Line *line) {
     free(line->content);
 }

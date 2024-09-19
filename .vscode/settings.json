@@ -12,6 +12,7 @@
         "initializer_list": "c",
         "utility": "c",
         "buffer.h": "c",
-        "line.h": "c"
+        "line.h": "c",
+        "functional": "c"
     }
 }

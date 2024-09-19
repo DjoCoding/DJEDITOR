@@ -1,6 +1,8 @@
 #define ENV_IMPL
 #define UTILS_IMPL
 #define SV_IMPL
+#define UVEC2_IMPL
+#define IVEC2_IMPL
 
 #include "headers/editor.h"
 
@@ -85,7 +87,7 @@ int main(void) {
 
     // initial render 
     editor_render(&e);
-
+    
     while (e.state != STOPED) {
         editor_update(&e);
         editor_render(&e);

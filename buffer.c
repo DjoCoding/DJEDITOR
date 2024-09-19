@@ -100,6 +100,36 @@ void buffer_render(Buffer *b, size_t fline, size_t fchar, Screen *s) {
     }
 }
 
+int buffer_find_text(Buffer *b, char *text, size_t text_size, uVec2 from, uVec2 *pos) {
+    pos->y = from.y;
+    Line *line = &b->lines[pos->y];
+    
+    // find the text in the line where the cursor is
+    int isfound = line_find_text(line, text, text_size, from.x, &pos->x);
+    if (isfound) { return 1; }
+
+    ++pos->y;
+    while(pos->y < b->count) {
+        line = &b->lines[pos->y];
+        isfound = line_find_text(line, text, text_size, 0, &pos->x);
+        if (isfound) { return 1; }
+        ++pos->y;
+    }
+
+    // if not found search from the top to the cursor pos
+    pos->y = 0;
+    while(pos->y < from.y) {
+        line = &b->lines[pos->y];
+        isfound = line_find_text(line, text, text_size, 0, &pos->x);
+        if (isfound) { return 1; }
+        ++pos->y;
+    }
+
+    return 0;
+}
+
+
+
 void buffer_dump(FILE *f, Buffer *b) {
     for(size_t i = 0; i < b->count; ++i) {
         line_dump(f, &b->lines[i]);

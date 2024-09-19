@@ -25,10 +25,8 @@ typedef enum {
 
 typedef struct {
     Buffer b;
-    size_t cursor_row;
-    size_t cursor_col;
-    int render_row;
-    int render_col;
+    uVec2 cursor; 
+    iVec2 camera;
     size_t cmd_cursor;
     State state;
     Mode mode;
@@ -52,6 +50,7 @@ void editor_dump(FILE *f, Editor *e);
 void editor_load_file(Editor *e, char *filepath);
 void editor_store_in_file(Editor *e, char *filepath);
 void editor_exec_command(Editor *e);
+int editor_find_text(Editor *e, char *text, size_t text_size, uVec2 *pos);
 void editor_render(Editor *e);
 void editor_clean(Editor *e);
 
