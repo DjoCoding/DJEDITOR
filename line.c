@@ -21,14 +21,14 @@ void line_reset(Line *line) {
 }
 
 void line_insert_tab(Line *line, size_t *cursor) {    
-    for (int i = 0; i < TAB_SIZE; ++i) {
+    size_t num_spaces = TAB_SIZE - *cursor % TAB_SIZE;
+    for (int i = 0; i < num_spaces; ++i) {
         line_insert_char(line, ' ', cursor);
     }
 }
 
 void line_insert_char(Line *line, char c, size_t *cursor) {
     if (c == '\t') { return line_insert_tab(line, cursor); }
-
     line->content[*cursor] = c;
     
     *cursor += 1; 
