@@ -35,7 +35,9 @@ void editor_push_line(Editor *e) {
     buffer_init_line(&e->b, e->cursor.y);
 }
 
-void editor_move_left(Editor *e, size_t w) {
+void editor_move_left_on_text_window(Editor *e) {
+    size_t w = e->screens[MAIN_SCREEN].config.w;
+
     if (e->camera.x + e->cursor.x > 0) { --e->cursor.x; return; }
     
     if (e->camera.y + e->cursor.y == 0) { return; }
@@ -52,7 +54,22 @@ void editor_move_left(Editor *e, size_t w) {
     e->cursor.x = e->b.lines[e->cursor.y].count - e->camera.x;
 }
 
-void editor_move_right(Editor *e) {
+void editor_move_left_on_command_window(Editor *e) {
+    if (e->cmd_cursor == 0) { return; }
+    --e->cmd_cursor;
+}
+
+void editor_move_left(Editor *e) {
+    size_t w = 0;
+
+    if (e->mode == COMMAND) {
+        return editor_move_left_on_command_window(e);
+    }
+
+    return editor_move_left_on_text_window(e);
+}
+
+void editor_move_right_on_text_window(Editor *e) {
     Line *line = &e->b.lines[e->cursor.y];
 
     if (e->cursor.x + e->camera.x >= line->count) {
@@ -72,7 +89,23 @@ void editor_move_right(Editor *e) {
     ++e->cursor.x;
 }
 
+void editor_move_right_on_command_window(Editor *e) {
+    if (e->cmd_cursor < e->cmd.count) {
+        ++e->cmd_cursor;
+    }
+}
+
+void editor_move_right(Editor *e) {
+    if (e->mode == COMMAND) {
+        return editor_move_right_on_command_window(e);
+    }
+    
+    editor_move_right_on_text_window(e);
+}
+
 void editor_move_up(Editor *e) {
+    if (e->mode == COMMAND) { return; }
+
     if (e->cursor.y == 0) { e->cursor.x = 0; return; }
     --e->cursor.y;
     
@@ -84,6 +117,8 @@ void editor_move_up(Editor *e) {
 }
 
 void editor_move_down(Editor *e) {
+    if (e->mode == COMMAND) { return; }
+
     if (e->cursor.y + 1 == e->b.count) { e->cursor.x = e->b.lines[e->cursor.y].count; return; }
     ++e->cursor.y;
     
@@ -257,12 +292,11 @@ void editor_insert_command_text(Editor *e, char *text, size_t text_size) {
 }
 
 void editor_remove_command_text(Editor *e, size_t text_size) {
-    Line *cmd = &e->cmd;
-    line_remove_text_before_cursor(cmd, text_size, &e->cmd_cursor);
+    return line_remove_text_before_cursor(&e->cmd, text_size, &e->cmd_cursor);
 }
 
 void editor_remove_command(Editor *e) {
-    line_reset(&e->cmd);
+    e->cmd.count = 0;
     e->cmd_cursor = 0;
 }
 
@@ -308,6 +342,25 @@ void editor_exec_command(Editor *e) {
         editor_move_camera_and_cursor_to_char(e, pos);
         return editor_remove_command(e);
     }
+
+    if (sv_cmp(arg, SV("r"))) {
+        String_View org = sv_get_arg(&s);
+        uVec2 pos = {0};
+
+        int isfound = editor_find_text(e, org.content, org.count, &pos);
+        if (!isfound) { return; }
+        
+        String_View new = sv_get_arg(&s);
+        uVec2 begin = uvec2_subx(pos, org.count);
+        buffer_replace_text(&e->b, new.content, new.count, org.count, begin);
+        
+        editor_move_camera_and_cursor_to_char(e, uvec2_addx(begin, new.count));
+        return editor_remove_command(e);
+    }
+
+    char *msg = "no command";
+    editor_remove_command(e);
+    return editor_insert_command_text(e, msg, strlen(msg));
 }
 
 void editor_clean(Editor *e) {

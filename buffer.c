@@ -128,6 +128,12 @@ int buffer_find_text(Buffer *b, char *text, size_t text_size, uVec2 from, uVec2 
     return 0;
 }
 
+// _size for the original text that's already stored in the buffer
+void buffer_replace_text(Buffer *b, char *text, size_t text_size, size_t _size, uVec2 pos) {
+    Line *line = &b->lines[pos.y];
+    line_replace_text(line, text, text_size, _size, pos.x);
+}
+
 
 
 void buffer_dump(FILE *f, Buffer *b) {

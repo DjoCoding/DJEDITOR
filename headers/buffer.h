@@ -21,6 +21,7 @@ void buffer_remove_text_before_cursor(Buffer *b, size_t text_size, size_t *row, 
 void buffer_dump(FILE *f, Buffer *b);
 void buffer_render(Buffer *b, size_t fline, size_t fchar, Screen *s);
 int buffer_find_text(Buffer *b, char *text, size_t text_size, uVec2 from, uVec2 *pos);
+void buffer_replace_text(Buffer *b, char *text, size_t text_size, size_t _size, uVec2 pos);
 void buffer_clean(Buffer *b);
 
 

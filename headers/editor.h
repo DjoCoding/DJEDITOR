@@ -36,7 +36,7 @@ typedef struct {
 
 Editor editor_init(void);
 void editor_push_line(Editor *e);
-void editor_move_left(Editor *e, size_t w);
+void editor_move_left(Editor *e);
 void editor_move_right(Editor *e);
 void editor_move_up(Editor *e);
 void editor_move_down(Editor *e);
@@ -46,10 +46,10 @@ void editor_remove_text_before_cursor(Editor *e, size_t text_size);
 void editor_insert_command_text(Editor *e, char *cmd, size_t cmd_size);
 void editor_remove_command_text(Editor *e, size_t cmd_size);
 void editor_remove_command(Editor *e);
+void editor_exec_command(Editor *e);
 void editor_dump(FILE *f, Editor *e);
 void editor_load_file(Editor *e, char *filepath);
 void editor_store_in_file(Editor *e, char *filepath);
-void editor_exec_command(Editor *e);
 int editor_find_text(Editor *e, char *text, size_t text_size, uVec2 *pos);
 void editor_render(Editor *e);
 void editor_clean(Editor *e);

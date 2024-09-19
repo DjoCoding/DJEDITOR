@@ -19,6 +19,9 @@ iVec2 ivec2v(int64_t v);
 iVec2 ivec2_addx(iVec2 a, int64_t v);
 iVec2 ivec2_addy(iVec2 a, int64_t v);
 iVec2 ivec2_add(iVec2 a, iVec2 b);
+iVec2 ivec2_subx(iVec2 a, int64_t v);
+iVec2 ivec2_suby(iVec2 a, int64_t v);
+iVec2 ivec2_sub(iVec2 a, iVec2 b);
 
 
 uVec2 uvec2(size_t x, size_t y);
@@ -28,6 +31,10 @@ uVec2 uvec2v(size_t v);
 uVec2 uvec2_addx(uVec2 a, size_t v);
 uVec2 uvec2_addy(uVec2 a, size_t v);
 uVec2 uvec2_add(uVec2 a, uVec2 b);
+uVec2 uvec2_subx(uVec2 a, size_t v);
+uVec2 uvec2_suby(uVec2 a, size_t v);
+uVec2 uvec2_sub(uVec2 a, uVec2 b);
+
 
 #ifdef IVEC2_IMPL
 
@@ -57,6 +64,18 @@ iVec2 ivec2_addy(iVec2 a, int64_t v) {
 
 iVec2 ivec2_add(iVec2 a, iVec2 b) {
     return ivec2_addy(ivec2_addx(a, b.x), b.y);
+}
+
+iVec2 ivec2_subx(iVec2 a, int64_t v) {
+    return ivec2(a.x - v, a.y);
+}
+
+iVec2 ivec2_suby(iVec2 a, int64_t v) {
+    return ivec2(a.x, a.y - v);
+}
+
+iVec2 ivec2_sub(iVec2 a, iVec2 b) {
+    return ivec2_suby(ivec2_subx(a, b.x), b.y);
 }
 
 #endif
@@ -89,6 +108,20 @@ uVec2 uvec2_addy(uVec2 a, size_t v) {
 
 uVec2 uvec2_add(uVec2 a, uVec2 b) {
     return uvec2_addy(uvec2_addx(a, b.x), b.y);
+}
+
+uVec2 uvec2_subx(uVec2 a, size_t v) {
+    if (a.x < v) { return uvec2(0, a.y); }
+    return uvec2(a.x - v, a.y);
+}
+
+uVec2 uvec2_suby(uVec2 a, size_t v) {
+    if (a.y < v) { return uvec2(a.x, 0); }
+    return uvec2(a.x, a.y - v);
+}
+
+uVec2 uvec2_sub(uVec2 a, uVec2 b) {
+    return uvec2_suby(uvec2_subx(a, b.x), b.y);
 }
 
 #endif

@@ -43,8 +43,8 @@ String_View sv_trim_left(String_View s) {
 
 String_View sv_trim_right(String_View s) {
     while(s.count) {
-        if (!isspace(*(s.content + s.count))) { break; }
-        --s.count; ++s.content;
+        if (!isspace(s.content[s.count - 1])) { break; }
+        --s.count;
     }
 
     return s;

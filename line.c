@@ -50,6 +50,15 @@ void line_insert_text_after_cursor(Line *line, char *text, size_t text_size, siz
     }
 }
 
+void line_replace_text(Line *line, char *text, size_t text_size, size_t _size, size_t pos) {
+    size_t nsize = line->count + text_size - _size;
+    while(nsize > line->size) { line_resize(line); }
+
+    memmove(&line->content[pos + text_size], &line->content[pos + _size], (line->count - pos - _size) * sizeof(char));
+    memcpy(&line->content[pos], text, text_size * sizeof(char));
+    line->count = nsize;
+}
+
 void line_remove_text_before_cursor(Line *line, size_t text_size, size_t *cursor) {
     DJ_ASSERT(*cursor >= text_size, "`line_remove_text_before_cursor` failed, found an unreachable situation");
     memmove(&line->content[*cursor] - text_size, &line->content[*cursor], sizeof(char) * (line->count - *cursor));

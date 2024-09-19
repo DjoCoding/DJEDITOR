@@ -20,6 +20,7 @@ void line_resize(Line *line);
 void line_insert_char(Line *line, char c, size_t *cursor);
 void line_insert_tab(Line *line, size_t *cursor);
 void line_insert_text_after_cursor(Line *line, char *text, size_t text_size, size_t *cursor);
+void line_replace_text(Line *line, char *text, size_t text_size, size_t orgtext_size, size_t pos);
 void line_remove_text_before_cursor(Line *line, size_t text_size, size_t *cursor);
 void line_dump(FILE *f, Line *line);
 void line_render(Line *line, size_t row, size_t cursor, Screen *s);
