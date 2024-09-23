@@ -105,13 +105,13 @@ int buffer_find_text(Buffer *b, char *text, size_t text_size, uVec2 from, uVec2 
     Line *line = &b->lines[pos->y];
     
     // find the text in the line where the cursor is
-    int isfound = line_find_text(line, text, text_size, from.x, &pos->x);
+    int isfound = line_find_text(line, text, text_size, from.x, line->count, &pos->x);
     if (isfound) { return 1; }
 
     ++pos->y;
     while(pos->y < b->count) {
         line = &b->lines[pos->y];
-        isfound = line_find_text(line, text, text_size, 0, &pos->x);
+        isfound = line_find_text(line, text, text_size, 0, line->count, &pos->x);
         if (isfound) { return 1; }
         ++pos->y;
     }
@@ -120,12 +120,16 @@ int buffer_find_text(Buffer *b, char *text, size_t text_size, uVec2 from, uVec2 
     pos->y = 0;
     while(pos->y < from.y) {
         line = &b->lines[pos->y];
-        isfound = line_find_text(line, text, text_size, 0, &pos->x);
+        isfound = line_find_text(line, text, text_size, 0, line->count, &pos->x);
         if (isfound) { return 1; }
         ++pos->y;
     }
 
-    return 0;
+
+    // the line we began with 
+    line = &b->lines[pos->y];
+    isfound = line_find_text(line, text, text_size, 0, line->count, &pos->x);
+    return isfound;
 }
 
 // _size for the original text that's already stored in the buffer

@@ -22,5 +22,6 @@ void cmd_to_buffer_line(Command cmd, Line *line);
 Command_History cmds_init();
 void cmds_insert_cmd(Command_History *hist, char *cmd, size_t _size);
 Command cmds_get_cmd(Command_History *hist);
+void cmds_clean(Command_History *hist);
 
 #endif

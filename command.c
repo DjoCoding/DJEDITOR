@@ -36,3 +36,11 @@ Command cmds_get_cmd(Command_History *hist) {
     return hist->cmds[hist->current];
 }   
 
+void cmds_clean(Command_History *hist) {
+    for(size_t i = 0; i < hist->count; ++i) {
+        free(hist->cmds[i].text);
+    }
+    free(hist->cmds);
+}
+
+

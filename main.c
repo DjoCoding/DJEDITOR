@@ -10,12 +10,42 @@
 
 Editor e = {0};
 
+#define ARR_LEN(arr)    sizeof(arr)/sizeof((arr)[0])
+
+int ncurses_color_table[] = {
+    COLOR_BLACK, 
+    COLOR_RED, 
+    COLOR_GREEN, 
+    COLOR_YELLOW, 
+    COLOR_BLUE, 
+    COLOR_MAGENTA, 
+    COLOR_CYAN, 
+    COLOR_WHITE
+};
+
+
 // ncurses initialization and cleaning 
 void ncurses_init(void) {
     initscr();
     raw();
     noecho();
     keypad(stdscr, TRUE);
+}
+
+void ncurses_init_colors(void) {
+    start_color();
+    use_default_colors();
+
+    size_t i = 0;
+    while(i < ARR_LEN(ncurses_color_table)) {
+        printf("%ld\n", i + BLACK_ON_DEFAULT);
+        init_pair(i + BLACK_ON_DEFAULT, ncurses_color_table[i], -1);
+        ++i;
+    }
+
+    for(size_t i = 1; i < ARR_LEN(ncurses_color_table); ++i) {
+        init_pair(i + RED_ON_BLACK - 1, ncurses_color_table[i], COLOR_BLACK);
+    }
 }
 
 void ncurses_quit(void) {
@@ -36,6 +66,7 @@ void editor_update(Editor *e) {
             case 'm': return editor_move_right_text(e);
             case 'o': return editor_move_up_text(e);
             case 'k': return editor_move_left_text(e);
+            case '\n': return editor_exec_last_command(e);
             default:  return;
         }
     }
@@ -86,38 +117,18 @@ void editor_update(Editor *e) {
     }
 }
 
-int main2(void) {
-    Line line = line_init();
-    size_t cursor = 0;
-    char *text = NULL;
-
-    {
-        text = "djaoued";
-        line_insert_text_after_cursor(&line, text, strlen(text), &cursor);
-    }
-
-    {
-        text = "f";
-        line_replace_text(&line, text, strlen(text), strlen("djaoued"), 0);
-    }
-
-    line_dump(stdout, &line);
-    fprintf(stdout, "\n");
-
-    line_clean(&line);
-    return 0;
-}
-
 int main(void) {
     ncurses_init();
 
     e = editor_init();
+
+    #if 1   
+        ncurses_init_colors();
+    #endif
+    
+    editor_set_default_color(&e);
+
     e.state = RUNNING;
-
-    editor_load_file(&e, "./test");
-
-    // initial render 
-    editor_render(&e);
     
     while (e.state != STOPED) {
         editor_update(&e);

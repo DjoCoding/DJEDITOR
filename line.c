@@ -21,8 +21,7 @@ void line_reset(Line *line) {
 }
 
 void line_insert_tab(Line *line, size_t *cursor) {    
-    size_t num_spaces = TAB_SIZE - *cursor % TAB_SIZE;
-    for (int i = 0; i < num_spaces; ++i) {
+    for (int i = 0; i < TAB_SIZE; ++i) {
         line_insert_char(line, ' ', cursor);
     }
 }
@@ -81,11 +80,11 @@ void line_render(Line *line, size_t row, size_t cursor, Screen *s) {
     }
 }
 
-int line_find_text(Line *line, char *text, size_t text_size, size_t from, size_t *pos) {
+int line_find_text(Line *line, char *text, size_t text_size, size_t from, size_t to, size_t *pos) {
     if (text_size > line->count - from) { return 0; }
     size_t i = from;
 
-    while (i < line->count) {
+    while (i < to) {
         size_t j = 0;
         while (j < text_size) {
             if (text[j] != line->content[i + j]) { break; }

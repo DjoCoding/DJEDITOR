@@ -10,11 +10,11 @@ Editor editor_init(void) {
     int w = 0, h = 0;
     getmaxyx(stdscr, h, w);
 
-    // main screen configuration, full width, full height - 1 (for the command screen), starts from the top left corner
+
     Config main_config = config_init(w, h - 1, 0, 0);
+
     e.screens[MAIN_SCREEN] = screen_init(main_config);
 
-    // command screen configuration 
     Config cmd_config = config_init(w, 1, h - 1, 0);
     e.screens[COMMAND_SCREEN] = screen_init(cmd_config);
 
@@ -229,6 +229,12 @@ void editor_adjust_camera_and_cursor(Editor *e) {
     }
 }
 
+void editor_set_default_color(Editor *e) {
+    for(size_t i = 0; i < SCREENS_COUNT; ++i) {
+        wattron(e->screens[i].window, COLOR_PAIR(DEFAULT_COLOR_PAIR));
+    }
+}
+
 void editor_render(Editor *e) {
     editor_adjust_camera_and_cursor(e);
 
@@ -236,14 +242,12 @@ void editor_render(Editor *e) {
 
     wclear(wind);
     buffer_render(&e->b, e->camera.y, e->camera.x, &e->screens[MAIN_SCREEN]);
-    wmove(wind, e->cursor.y, e->cursor.x);
     wrefresh(wind);
     
     wind = e->screens[COMMAND_SCREEN].window;
 
     wclear(wind);
     line_render(&e->cmd_line, e->screens[COMMAND_SCREEN].config.row, 0, &e->screens[COMMAND_SCREEN]);
-    wmove(wind, e->screens[COMMAND_SCREEN].config.row, e->cmd_cursor);
     wrefresh(wind);
 
     if(e->mode == COMMAND) {
@@ -311,8 +315,9 @@ void editor_push_command_to_history(Editor *e) {
     cmds_insert_cmd(&e->hist, cmd_line.content, cmd_line.count);
 }
 
-
 void editor_exec_last_command(Editor *e) {
+    if (e->hist.count == 0) { return; }
+    e->hist.current = e->hist.count - 1;
     cmd_to_buffer_line(cmds_get_cmd(&e->hist), &e->cmd_line);
     editor_exec_command(e);
 }
@@ -379,9 +384,24 @@ void editor_exec_command(Editor *e) {
     return editor_insert_command_text(e, msg, strlen(msg));
 }
 
+void editor_shape_color_buffer(Editor *e) {
+    size_t size = e->b.count;
+    e->cb = color_buffer_init(size);
+    for(size_t i = 0; i < size; ++i) {
+        color_buffer_init_row(&e->cb, i, e->b.lines[i].count);
+    }
+}
+
+void editor_clean_color_buffer_and_reshape(Editor *e) {
+    color_buffer_clean(&e->cb);
+    editor_shape_color_buffer(e);
+}
+
 void editor_clean(Editor *e) {
     buffer_clean(&e->b);
     line_clean(&e->cmd_line);
+    cmds_clean(&e->hist);
+    color_buffer_clean(&e->cb);
 
     for (int i = 0; i < SCREENS_COUNT; ++i) {
         delwin(e->screens[i].window);

@@ -2,6 +2,7 @@
 #define EDITOR_H
 
 #include "buffer.h"
+#include "color.h"
 #include "command.h"
 #include "utils.h"
 #include "screen.h"
@@ -21,11 +22,13 @@ typedef enum {
 typedef enum {
     MAIN_SCREEN = 0,
     COMMAND_SCREEN,
+    LINE_NUMBER_SCREEN,
     SCREENS_COUNT,
 } Editor_Screen;
 
 typedef struct {
     Buffer b;
+    Color_Buffer cb;
     uVec2 cursor; 
     iVec2 camera;
     size_t cmd_cursor;
@@ -67,7 +70,12 @@ void editor_store_in_file(Editor *e, char *filepath);
 int editor_find_text(Editor *e, char *text, size_t text_size, uVec2 *pos);
 void editor_replace_text(Editor *e, char *text, size_t text_size, size_t _size, uVec2 pos);
 
+void editor_shape_color_buffer(Editor *e);
+
+void editor_set_default_color(Editor *e);
 void editor_render(Editor *e);
+
+
 void editor_clean(Editor *e);
 
 
