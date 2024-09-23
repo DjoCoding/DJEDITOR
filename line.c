@@ -98,6 +98,10 @@ int line_find_text(Line *line, char *text, size_t text_size, size_t from, size_t
     return 0;
 }
 
+Tokens line_tokenize(Line *line, Tokenizer *tk) {
+    return tk_tokenize_text(tk, line->content, line->count);
+}
+
 void line_clean(Line *line) {
     free(line->content);
 }

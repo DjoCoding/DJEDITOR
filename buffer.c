@@ -138,7 +138,15 @@ void buffer_replace_text(Buffer *b, char *text, size_t text_size, size_t _size, 
     line_replace_text(line, text, text_size, _size, pos.x);
 }
 
-
+Token_Container buffer_tokenize(Buffer *b, Tokenizer *tk) {
+    Token_Container container = tkn_container_init(b->count);
+    for(size_t i = 0; i < b->count; ++i) {
+        Line line = b->lines[i];
+        Tokens tks = line_tokenize(&line, tk);
+        container.tks[i] = tks;
+    }
+    return container;
+}
 
 void buffer_dump(FILE *f, Buffer *b) {
     for(size_t i = 0; i < b->count; ++i) {

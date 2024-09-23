@@ -14,6 +14,8 @@
 #define DJ_ALLOC             alloc
 #define DJ_REALLOC           ralloc
 
+#define ARR_LEN(arr)      sizeof(arr)/sizeof((arr)[0]) 
+
 void *alloc(size_t size);
 void *ralloc(void *prev, size_t isize, size_t nsize);
 

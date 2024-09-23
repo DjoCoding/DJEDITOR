@@ -70,6 +70,8 @@ void editor_store_in_file(Editor *e, char *filepath);
 int editor_find_text(Editor *e, char *text, size_t text_size, uVec2 *pos);
 void editor_replace_text(Editor *e, char *text, size_t text_size, size_t _size, uVec2 pos);
 
+
+void editor_tokenize_buffer(Editor *e);
 void editor_shape_color_buffer(Editor *e);
 
 void editor_set_default_color(Editor *e);
