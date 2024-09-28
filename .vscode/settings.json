@@ -13,6 +13,8 @@
         "utility": "c",
         "buffer.h": "c",
         "line.h": "c",
-        "functional": "c"
+        "functional": "c",
+        "vec2.h": "c",
+        "tokenizer.h": "c"
     }
 }

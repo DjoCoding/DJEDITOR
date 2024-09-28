@@ -2,6 +2,7 @@
 #define LINE_H
 
 #include "env.h"
+#include "color.h"
 #include "tokenizer.h" 
 #include "screen.h"
 
@@ -26,6 +27,7 @@ void line_replace_text(Line *line, char *text, size_t text_size, size_t orgtext_
 void line_remove_text_before_cursor(Line *line, size_t text_size, size_t *cursor);
 
 void line_render(Line *line, size_t row, size_t cursor, Screen *s);
+void line_render_highlighted(Line *line, size_t row, size_t cursor, int *colors, Screen *s);
 
 int line_find_text(Line *line, char *text, size_t text_size, size_t from, size_t to, size_t *pos);
 

@@ -100,6 +100,16 @@ void buffer_render(Buffer *b, size_t fline, size_t fchar, Screen *s) {
     }
 }
 
+void buffer_render_highlighted(Buffer *b, size_t fline, size_t fchar, Color_Buffer *cb, Screen *s) {
+    size_t i = fline;
+    while(true) {
+        if ((i - fline >= s->config.h) || (i >= b->count)) { break; }
+        Line *line = &b->lines[i];
+        line_render_highlighted(line, i - fline, fchar, cb->colors[i], s);
+        ++i;
+    }
+}
+
 int buffer_find_text(Buffer *b, char *text, size_t text_size, uVec2 from, uVec2 *pos) {
     pos->y = from.y;
     Line *line = &b->lines[pos->y];

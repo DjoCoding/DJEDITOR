@@ -1,9 +1,9 @@
 #ifndef COLOR_H_
 #define COLOR_H_
 
-#include "buffer.h"
+#include "env.h"
 
-#define DEFAULT_COLOR_PAIR CYAN_ON_DEFAULT
+#define DEFAULT_COLOR_PAIR WHITE_ON_DEFAULT
 
 typedef struct {
     int **colors;
@@ -26,8 +26,7 @@ typedef enum {
     MAGENTA_ON_BLACK, 
     CYAN_ON_BLACK, 
     WHITE_ON_BLACK
-} Colors;
-
+} Color;
 
 Color_Buffer color_buffer_init(size_t size);
 void color_buffer_init_row(Color_Buffer *cb, size_t row, size_t size);

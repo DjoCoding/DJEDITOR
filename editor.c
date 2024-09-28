@@ -235,6 +235,32 @@ void editor_set_default_color(Editor *e) {
     }
 }
 
+void editor_render_highlighted(Editor *e) {
+    editor_adjust_camera_and_cursor(e);
+
+    WINDOW *wind = e->screens[MAIN_SCREEN].window;
+
+    Token_Container container = editor_tokenize_buffer(e);
+    editor_clean_color_buffer_and_reshape(e);
+    ch_setup_color_buffer(&e->cb, &container);
+
+    wclear(wind);
+    buffer_render_highlighted(&e->b, e->camera.y, e->camera.x, &e->cb, &e->screens[MAIN_SCREEN]);
+    wrefresh(wind);
+    
+    wind = e->screens[COMMAND_SCREEN].window;
+
+    wclear(wind);
+    line_render(&e->cmd_line, e->screens[COMMAND_SCREEN].config.row, 0, &e->screens[COMMAND_SCREEN]);
+    wrefresh(wind);
+
+    if(e->mode == COMMAND) {
+        move(e->screens[COMMAND_SCREEN].config.row, e->cmd_cursor);
+    } else {
+        move(e->cursor.y, e->cursor.x);        
+    }
+}
+
 void editor_render(Editor *e) {
     editor_adjust_camera_and_cursor(e);
 
@@ -384,6 +410,10 @@ void editor_exec_command(Editor *e) {
     return editor_insert_command_text(e, msg, strlen(msg));
 }
 
+Token_Container editor_tokenize_buffer(Editor *e) {
+    return buffer_tokenize(&e->b, &e->tk);
+}
+
 void editor_shape_color_buffer(Editor *e) {
     size_t size = e->b.count;
     e->cb = color_buffer_init(size);
@@ -395,6 +425,14 @@ void editor_shape_color_buffer(Editor *e) {
 void editor_clean_color_buffer_and_reshape(Editor *e) {
     color_buffer_clean(&e->cb);
     editor_shape_color_buffer(e);
+    
+    // set the default color
+    for(size_t i = 0; i < e->b.count; ++i) {
+        Line line = e->b.lines[i];
+        for(size_t j = 0; j < line.count; ++j) {
+            e->cb.colors[i][j] = DEFAULT_COLOR;
+        }
+    }
 }
 
 void editor_clean(Editor *e) {

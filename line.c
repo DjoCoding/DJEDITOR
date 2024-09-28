@@ -80,6 +80,19 @@ void line_render(Line *line, size_t row, size_t cursor, Screen *s) {
     }
 }
 
+void line_render_highlighted(Line *line, size_t row, size_t cursor, int *colors, Screen *s) {
+    size_t i = cursor;
+
+    while(true) {
+        if ((i >= line->count) || (i - cursor >= s->config.w)) { break; }
+        wmove(s->window, (int)row, (int)(i - cursor));
+        wattron(s->window, COLOR_PAIR(colors[i]));
+        waddch(s->window, line->content[i]);
+        wattroff(s->window, COLOR_PAIR(colors[i]));
+        ++i;
+    }
+}
+
 int line_find_text(Line *line, char *text, size_t text_size, size_t from, size_t to, size_t *pos) {
     if (text_size > line->count - from) { return 0; }
     size_t i = from;

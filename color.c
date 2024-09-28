@@ -16,5 +16,5 @@ void color_buffer_clean(Color_Buffer *cb) {
     for(size_t i = 0; i < cb->size; ++i) {
         if (cb->colors[i]) { free(cb->colors[i]); }
     }
-    free(cb->colors);
+    if (cb->colors) free(cb->colors);
 }

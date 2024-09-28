@@ -6,6 +6,7 @@
 #include "command.h"
 #include "utils.h"
 #include "screen.h"
+#include "chighlighter.h"
 #include "../tools/sv.h"
 
 typedef enum {
@@ -37,6 +38,7 @@ typedef struct {
     Screen screens[SCREENS_COUNT];
     Command_History hist;
     Line cmd_line;
+    Tokenizer tk;
 } Editor;
 
 Editor editor_init(void);
@@ -71,11 +73,14 @@ int editor_find_text(Editor *e, char *text, size_t text_size, uVec2 *pos);
 void editor_replace_text(Editor *e, char *text, size_t text_size, size_t _size, uVec2 pos);
 
 
-void editor_tokenize_buffer(Editor *e);
+Token_Container editor_tokenize_buffer(Editor *e);
+
 void editor_shape_color_buffer(Editor *e);
+void editor_clean_color_buffer_and_reshape(Editor *e);
 
 void editor_set_default_color(Editor *e);
 void editor_render(Editor *e);
+void editor_render_highlighted(Editor *e);
 
 
 void editor_clean(Editor *e);

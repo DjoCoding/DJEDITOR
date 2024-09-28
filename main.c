@@ -132,7 +132,7 @@ int main(void) {
     
     while (e.state != STOPED) {
         editor_update(&e);
-        editor_render(&e);
+        editor_render_highlighted(&e);
     }
     
     editor_clean(&e);
