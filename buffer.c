@@ -58,12 +58,15 @@ void buffer_remove_text_before_cursor(Buffer *b, size_t text_size, size_t *row, 
 
     Line *prev = &b->lines[*row - 1];
     while (prev->count + line->count >= prev->size) { line_resize(prev); }
+
     memcpy(&prev->content[prev->count], line->content, line->count);
+    *col = prev->count;
+    
     prev->count += line->count;
     text_size -= 1;   // for the new line char
 
     line_clean(line);
-    
+
     for (size_t i = *row; i < b->count - 1; ++i) {
         b->lines[i] = b->lines[i + 1];
     }
@@ -71,7 +74,6 @@ void buffer_remove_text_before_cursor(Buffer *b, size_t text_size, size_t *row, 
     --b->count;
 
     *row -= 1;
-    *col = prev->count;
 
     return buffer_remove_text_before_cursor(b, text_size, row, col);
 }

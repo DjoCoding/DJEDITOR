@@ -9,6 +9,8 @@
 #include "chighlighter.h"
 #include "../tools/sv.h"
 
+#define ESC 27
+
 typedef enum {
     STOPED = 0,
     RUNNING, 
@@ -72,6 +74,7 @@ void editor_store_in_file(Editor *e, char *filepath);
 int editor_find_text(Editor *e, char *text, size_t text_size, uVec2 *pos);
 void editor_replace_text(Editor *e, char *text, size_t text_size, size_t _size, uVec2 pos);
 
+void editor_update(Editor *e);
 
 Token_Container editor_tokenize_buffer(Editor *e);
 

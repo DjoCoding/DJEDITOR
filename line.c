@@ -116,5 +116,6 @@ Tokens line_tokenize(Line *line, Tokenizer *tk) {
 }
 
 void line_clean(Line *line) {
+    line_reset(line);
     free(line->content);
 }

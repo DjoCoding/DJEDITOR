@@ -6,8 +6,6 @@
 
 #include "headers/editor.h"
 
-#define ESC 27
-
 Editor e = {0};
 
 #define ARR_LEN(arr)    sizeof(arr)/sizeof((arr)[0])
@@ -50,71 +48,6 @@ void ncurses_init_colors(void) {
 
 void ncurses_quit(void) {
     endwin();
-}
-
-void editor_update(Editor *e) {
-    int c = getch();
-
-    if (e->mode == NORMAL) {
-        switch(c) {
-            case ':': 
-                e->mode = COMMAND;
-                editor_remove_command(e);
-                return editor_insert_command_text(e, (char *) &c, sizeof(char));
-            case 'i': e->mode = INSERT; return;
-            case 'l': return editor_move_down_text(e);
-            case 'm': return editor_move_right_text(e);
-            case 'o': return editor_move_up_text(e);
-            case 'k': return editor_move_left_text(e);
-            case '\n': return editor_exec_last_command(e);
-            default:  return;
-        }
-    }
-
-    if (e->mode == COMMAND) {
-        switch(c) {
-            case '\n':
-                editor_push_command_to_history(e);
-                editor_exec_command(e);
-                e->mode = NORMAL;
-                return;
-            case ESC:
-                editor_remove_command(e);
-                e->mode = NORMAL;
-                return;    
-            case KEY_LEFT:  
-                return editor_move_left_command(e);
-            case KEY_RIGHT:
-                return editor_move_right_command(e);
-            case KEY_UP:
-                return editor_move_up_command(e);
-            case KEY_DOWN:
-                return editor_move_down_command(e);
-            case KEY_BACKSPACE:
-                return editor_remove_command_text(e, sizeof(char));
-            default:
-                return editor_insert_command_text(e, (char *) &c, sizeof(char));
-        }        
-    }
-
-    switch(c) {
-        case KEY_LEFT:  
-            return editor_move_left_text(e);
-        case KEY_RIGHT:
-            return editor_move_right_text(e);
-        case KEY_UP:
-            return editor_move_up_text(e);
-        case KEY_DOWN:
-            return editor_move_down_text(e);
-        case KEY_BACKSPACE:
-            return editor_remove_text_before_cursor(e, sizeof(char));
-        case '\n':
-            return editor_insert_line_after_cursor(e);
-        case ESC:
-            e->mode = NORMAL; return;
-        default:
-            return editor_insert_text_after_cursor(e, (char *) &c, sizeof(char));
-    }
 }
 
 int main(void) {
